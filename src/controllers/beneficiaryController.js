@@ -1,5 +1,4 @@
 import { beneficiaryModel } from "../models/beneficiaryModel.js";
-import bcrypt from "bcryptjs";
 
 const getBeneficiarys = async (req, res) => {
     try {
@@ -16,7 +15,7 @@ const getBeneficiary = async (req, res) => {
     try {
         const beneficiary = await beneficiaryModel.getBeneficiaryModel({ rif_ben });
         if (!beneficiary) {
-            return res.status(404).json({ message: 'beneficiario no Encontrado'});
+            return res.status(404).json({ message: 'Beneficiario no Encontrado'});
         }
         res.json(beneficiary);
     } catch (error) {

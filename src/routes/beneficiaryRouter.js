@@ -10,3 +10,4 @@ router.put("/beneficiary/:rif_ben", BeneficiaryControllers.updateBeneficiary);
 router.delete("/beneficiary/:rif_ben", BeneficiaryControllers.deleteBeneficiary);
 
 export default router;
+

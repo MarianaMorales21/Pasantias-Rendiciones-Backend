@@ -3,11 +3,13 @@ import { port } from "./src/config.js";
 import morgan from "morgan";
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import './src/database/connection.database.js'; 
 import UserRouters from './src/routes/userRoutes.js'
 import ProgramsRouters from './src/routes/programsRoutes.js'
 import BeneficiaryRouters from './src/routes/beneficiaryRouter.js'
-import './src/database/connection.database.js'; 
-
+import AccountantRouters from './src/routes/accountantRouter.js'
+import OrganizationRouters from './src/routes/organizationRouter.js'
+import OrderRouters from './src/routes/orderRouter.js'
 const app = express();
 
 app.use(cors({
@@ -26,6 +28,9 @@ app.use(cookieParser());
 app.use(UserRouters);
 app.use(ProgramsRouters);
 app.use(BeneficiaryRouters)
+app.use(AccountantRouters);
+app.use(OrganizationRouters);
+app.use(OrderRouters);
 
 app.listen(port, () => {
     console.log("Server on port", port);
