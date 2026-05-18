@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import mysql from 'mysql2/promise';
 import { DB_user, DB_database, DB_host, DB_password, DB_port } from "../config.js";
 
@@ -17,7 +16,7 @@ export const db = await mysql.createPool({
 try {
     
     await db.query('SELECT 1'); 
-    console.log('✅ Connected to MySQL database');
+    console.log(`✅ Connected to MySQL database: ${DB_database}`);
 } catch (error) {
     console.error('❌ Error connecting to database:', error.message);
 }

@@ -1,0 +1,132 @@
+import { userModel } from '../models/userModel.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { createAccesToken } from '../token.js';
+import { sendRecoveryEmail } from '../libs/nodemailer.js';
+
+export const login = async (req, res) => {
+    const { ced_usu, cla_usu } = req.body;
+    const trimmedCedula = ced_usu ? String(ced_usu).trim() : "";
+
+    try {
+        const userFound = await userModel.getUserModel({ ced_usu: trimmedCedula });
+        
+        if (!userFound) return res.status(400).json({ message: "Usuario no encontrado" });
+
+        let isMatch = await bcrypt.compare(cla_usu, userFound.cla_usu);
+        
+        // Fallback: Si no coincide con bcrypt, verificar si es texto plano (Legacy support)
+        if (!isMatch && cla_usu === userFound.cla_usu) {
+            isMatch = true;
+            // Opcional: Hashear y actualizar la contraseña en la DB para el futuro
+            try {
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(cla_usu, salt);
+                await userModel.updatePasswordModel(userFound.ced_usu, hashedPassword);
+                console.log(`Contraseña de usuario ${userFound.ced_usu} actualizada a hash exitosamente.`);
+            } catch (updateError) {
+                console.error("Error al actualizar contraseña legacy:", updateError);
+                // No detenemos el login si falla la actualización, ya que la contraseña fue correcta
+            }
+        }
+
+        if (!isMatch) return res.status(400).json({ message: "Contraseña incorrecta" });
+
+        const token = await createAccesToken({ 
+            id: userFound.ced_usu, 
+            rol: userFound.rol_usu,
+            nombre: userFound.nom_usu 
+        });
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        });
+
+        res.json({
+            ced_usu: userFound.ced_usu,
+            nom_usu: userFound.nom_usu,
+            rol_usu: userFound.rol_usu,
+            rol_nom: userFound.rol_nom
+        });
+
+    } catch (error) {
+        console.error("Login Error:", error);
+        res.status(500).json({ message: "Error interno del servidor" });
+    }
+};
+
+export const logout = (req, res) => {
+    res.cookie('token', '', {
+        expires: new Date(0),
+    });
+    return res.sendStatus(200);
+};
+
+export const profile = async (req, res) => {
+    try {
+        const userFound = await userModel.getUserModel({ ced_usu: req.user.id });
+        if (!userFound) return res.status(400).json({ message: "Usuario no encontrado" });
+
+        return res.json({
+            ced_usu: userFound.ced_usu,
+            nom_usu: userFound.nom_usu,
+            rol_usu: userFound.rol_usu,
+            rol_nom: userFound.rol_nom,
+            ema_usu: userFound.ema_usu
+        });
+    } catch (error) {
+        return res.status(500).json({ message: "Error al obtener perfil" });
+    }
+};
+
+// --- RECUPERACIÓN DE CONTRASEÑA ---
+
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await userModel.getUserByEmailModel(email);
+        if (!user) {
+            return res.status(200).json({ message: "Si el correo existe en nuestro sistema, recibirás un enlace de recuperación." });
+        }
+
+        // Crear token temporal (15 minutos)
+        const token = jwt.sign({ id: user.ced_usu }, process.env.PALABRASECRETA || 'secret123', { expiresIn: '15m' });
+
+        await sendRecoveryEmail(user.ema_usu, token);
+
+        res.json({ message: "Correo de recuperación enviado exitosamente." });
+    } catch (error) {
+        console.error("Forgot Password Error:", error);
+        res.status(500).json({ message: "Error al enviar el correo de recuperación." });
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) return res.status(400).json({ message: "La nueva contraseña es obligatoria." });
+
+    try {
+        // Verificar token
+        const decoded = jwt.verify(token, process.env.PALABRASECRETA || 'secret123');
+        const userId = decoded.id;
+
+        // Hashear nueva clave
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Actualizar en DB
+        await userModel.updatePasswordModel(userId, hashedPassword);
+
+        res.json({ message: "Contraseña actualizada correctamente. Ya puedes iniciar sesión." });
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res.status(400).json({ message: "El enlace ha expirado. Por favor solicita uno nuevo." });
+        }
+        res.status(400).json({ message: "Enlace de recuperación inválido o expirado." });
+    }
+};

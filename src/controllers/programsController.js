@@ -1,5 +1,4 @@
 import { programsModel } from "../models/programsModel.js";
-import bcrypt from 'bcryptjs';
 
 const getPrograms = async (req, res) => {
     try {
@@ -26,9 +25,9 @@ const getProgram = async (req, res) => {
 };
 
 const createProgram = async (req, res) => {
-    const { cod_pro, nom_pro, sta_pro } = req.body;
+    const { nom_pro, sta_pro } = req.body;
     try {
-        const newProgram = await programsModel.createProgramModel({ cod_pro, nom_pro, sta_pro });
+        const newProgram = await programsModel.createProgramModel({ nom_pro, sta_pro });
         res.status(201).json(newProgram);
     } catch (error) {
         console.error('Error al Crear el Programa:', error);

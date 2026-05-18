@@ -1,27 +1,38 @@
-import { db } from '../database/connection.database.js'
+import { db } from '../database/connection.database.js';
 
 const getAccountantsModel = async () => {
-    const [rows] = await db.query('SELECT * FROM ctd_ren');
+    const [rows] = await db.query(`
+        SELECT c.*, s.nom_sta 
+        FROM ctd_ren c
+        JOIN sta_ren s ON c.sta_ctd = s.cod_sta
+    `);
     return rows;
 };
 
 const getAccountantModel = async ({ ced_ctd }) => {
-    const [rows] = await db.query('SELECT * FROM ctd_ren WHERE ced_ctd=?', [ced_ctd]);
-    return rows;
-}
-
-const createAccountantModel = async ({ ced_ctd, ape_cdt, nom_cdt, dir_cdt, sta_cdt }) => {
-    await db.query('INSERT INTO ctd_ren (ced_ctd, ape_ctd, nom_ctd, dir_cdt, sta_ctd) VALUES (?,?,?,?,?)', 
-    [ced_ctd, ape_cdt, nom_cdt, dir_cdt, sta_cdt]);
-    return { ced_ctd, ape_cdt, nom_cdt, dir_cdt, sta_cdt }
+    const [rows] = await db.query(`
+        SELECT c.*, s.nom_sta 
+        FROM ctd_ren c
+        JOIN sta_ren s ON c.sta_ctd = s.cod_sta
+        WHERE c.ced_ctd=?
+    `, [ced_ctd]);
+    return rows[0];
 };
 
-const updateAccountantModel = async (ced_ctd, {ape_cdt, nom_cdt, dir_cdt, sta_cdt}) => {
+const createAccountantModel = async ({ ced_ctd, ape_ctd, nom_ctd, dir_ctd, sta_ctd }) => {
     await db.query(
-        'UPDATE ctd_ren SET ape_cdt=?, nom_cdt=?, dir_cdt=?, sta_cdt=?',
-        [ape_cdt, nom_cdt, dir_cdt, sta_cdt]
+        'INSERT INTO ctd_ren (ced_ctd, ape_ctd, nom_ctd, dir_ctd, sta_ctd) VALUES (?,?,?,?,?)', 
+        [ced_ctd, ape_ctd, nom_ctd, dir_ctd, parseInt(sta_ctd)]
     );
-    return { ape_cdt, nom_cdt, dir_cdt, sta_cdt };
+    return { ced_ctd, ape_ctd, nom_ctd, dir_ctd, sta_ctd };
+};
+
+const updateAccountantModel = async (ced_ctd, { ape_ctd, nom_ctd, dir_ctd, sta_ctd }) => {
+    await db.query(
+        'UPDATE ctd_ren SET ape_ctd=?, nom_ctd=?, dir_ctd=?, sta_ctd=? WHERE ced_ctd=?',
+        [ape_ctd, nom_ctd, dir_ctd, parseInt(sta_ctd), ced_ctd]
+    );
+    return { ape_ctd, nom_ctd, dir_ctd, sta_ctd, ced_ctd };
 };
 
 const deleteAccountantModel = async ({ ced_ctd }) => {

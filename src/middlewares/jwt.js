@@ -1,59 +1,40 @@
 import jwt from 'jsonwebtoken';
 
 export const verifyToken = (req, res, next) => {
-    const token = req.cookies.token;
+    const { token } = req.cookies;
 
-    if (!token) {
-        return res.status(401).json({ message: "No user is logged in" });
-    }
+    if (!token) return res.status(401).json({ message: "No hay token, autorización denegada" });
 
-    try {
-        const decoded = jwt.verify(token, process.env.PALABRASECRETA || 'secret123');
-        req.username = decoded.username;
-        req.role = decoded.role;
+    jwt.verify(token, process.env.PALABRASECRETA || 'secret123', (err, user) => {
+        if (err) return res.status(403).json({ message: "Token inválido" });
+        req.user = user;
         next();
-    } catch (error) {
-        console.error("Token verification error:", error);
-        return res.status(403).json({ message: "Invalid token" });
-    }
+    });
 };
 
-export const verifyAdmin = (req, res, next) => {
-    console.log("USER ROLE:", req.role);
-    if (req.role === "Administrator") {
-        return next();
-    }
+// Middleware para restringir por rol y lógica de solo lectura
+export const authorizeRoles = (rolesPermitidos) => {
+    return (req, res, next) => {
+        const userRole = req.user.rol; // 1: Admin, 2: Coordinator, 3: Accountant
 
-    return res.status(403).json({ error: "Unauthorized, only admin users are allowed" });
+        // 1. Administrador (1) siempre tiene acceso total
+        if (userRole === 1) return next();
+
+        // 2. Bloqueo de Módulo de Usuarios para No-Admins (Coordinador y Cuentadante)
+        if (req.originalUrl.includes('/users') && userRole !== 1) {
+            return res.status(403).json({ message: "Acceso denegado: Solo administradores pueden gestionar usuarios" });
+        }
+
+        // 3. Cuentadante (3) es Solo Lectura (Solo GET)
+        if (userRole === 3 && req.method !== 'GET') {
+            return res.status(403).json({ message: "Acceso denegado: El rol Cuentadante es de solo lectura" });
+        }
+
+        // 4. Verificar si el rol está en la lista de permitidos (opcional para rutas muy específicas)
+        if (rolesPermitidos && !rolesPermitidos.includes(userRole)) {
+            return res.status(403).json({ message: "No tienes permisos para realizar esta acción" });
+        }
+
+        next();
+    };
 };
-
-export const verifyDriver = (req, res, next) => {
-    if (req.role === "Driver" || req.role === "Administrator") {
-        return next();
-    }
-    return res.status(403).json({ error: "Unauthorized, only driver or administrator users are allowed" });
-};
-
-export const verifyClient = (req, res, next) => {
-    if (req.role === "Client" || req.role === "Administrator") {
-        return next();
-    }
-
-    return res.status(403).json({ error: "Unauthorized, only client or administrator users are allowed" });
-};
-
-/*{
-    "username": "Marisca",
-    "password": "marisca123"
-}
-{
-    "name": "Mariana Morales",
-    "username": "mariana123456",
-    "email": "park68835-th@huskrm.com",
-    "role": "Client",
-    "status": "Active",
-    "password": "mariana123456",
-    "address": "sdfsdf",
-    "phone": "04121617297",
-    "dni": "30781815"
-}*/

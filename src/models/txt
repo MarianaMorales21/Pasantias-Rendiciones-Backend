@@ -1,0 +1,30 @@
+import { rendicionModel } from "../models/rendicion.model.js";
+
+export const getFullReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const header = await rendicionModel.getRendicionHeaderModel(id);
+        
+        if (!header) {
+            return res.status(404).json({ ok: false, msg: "No se encontró la rendición" });
+        }
+
+        const details = await rendicionModel.getRendicionDetailsModel(id);
+
+        // Calculamos el total rendido aquí para facilitar el trabajo al Frontend
+        const totalRendido = details.reduce((acc, curr) => acc + parseFloat(curr.mon_drn), 0);
+
+        res.json({
+            ok: true,
+            header,
+            details,
+            summary: {
+                totalRendido,
+                montoPorRendir: parseFloat(header.mon_opg) - totalRendido
+            }
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ ok: false, msg: "Error al generar datos del reporte" });
+    }
+};

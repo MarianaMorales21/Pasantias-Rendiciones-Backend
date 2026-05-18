@@ -55,7 +55,7 @@ const deleteBeneficiary = async (req, res) => {
     try {
         const isDelete = await beneficiaryModel.deleteBeneficiaryModel({ rif_ben });
         if (!isDelete) {
-            return res.status(404).json({ message: 'No se encontro el Beneficiario'});
+            return res.status(404).json({ message: 'Beneficiario no Encontrado'});
         }
         res.status(200).json({ message: 'Beneficiario Eliminado con Exito'});
     } catch (error) {
