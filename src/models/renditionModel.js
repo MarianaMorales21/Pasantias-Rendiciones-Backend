@@ -21,20 +21,20 @@ const getRenditionModel = async ({ cod_rnd }) => {
     return rows[0];
 };
 
-const createRenditionModel = async ({ num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd }) => {
+const createRenditionModel = async ({ num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd }) => {
     const [result] = await db.query(
-        'INSERT INTO rnd_ren (num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd) VALUES (?,?,?,?,?,?)', 
-        [num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, parseInt(sta_rnd)]
+        'INSERT INTO rnd_ren (num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd) VALUES (?,?,?,?,?,?,?)', 
+        [num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, parseInt(sta_rnd), rnt_rnd]
     );
-    return { cod_rnd: result.insertId, num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd };
+    return { cod_rnd: result.insertId, num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd };
 };
 
-const updateRenditionModel = async (cod_rnd, { num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd }) => {
+const updateRenditionModel = async (cod_rnd, { num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd }) => {
     await db.query(
-        'UPDATE rnd_ren SET num_rnd=?, opg_rnd=?, fec_rnd=?, prd_rnd=?, avs_rnd=?, sta_rnd=? WHERE cod_rnd=?',
-        [num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, parseInt(sta_rnd), cod_rnd]
+        'UPDATE rnd_ren SET num_rnd=?, opg_rnd=?, fec_rnd=?, prd_rnd=?, avs_rnd=?, sta_rnd=?, rnt_rnd=? WHERE cod_rnd=?',
+        [num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, parseInt(sta_rnd), rnt_rnd, cod_rnd]
     );
-    return { cod_rnd, num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd };
+    return { cod_rnd, num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd };
 };
 
 const deleteRenditionModel = async ({ cod_rnd }) => {
@@ -53,6 +53,28 @@ const getRenditionsByOpgModel = async (opg_rnd) => {
     return rows;
 };
 
+// Verificar si el periodo ya existe para esa misma OPG
+const checkDuplicatePeriod = async (opg_rnd, prd_rnd, excludeCodRnd = null) => {
+    const query = excludeCodRnd
+        ? 'SELECT COUNT(*) as count FROM rnd_ren WHERE opg_rnd = ? AND prd_rnd = ? AND cod_rnd != ?'
+        : 'SELECT COUNT(*) as count FROM rnd_ren WHERE opg_rnd = ? AND prd_rnd = ?';
+    const params = excludeCodRnd ? [opg_rnd, prd_rnd, excludeCodRnd] : [opg_rnd, prd_rnd];
+    const [rows] = await db.query(query, params);
+    return rows[0].count > 0;
+};
+
+// Verificar si la rendición tiene notas de débito asociadas
+const renditionHasDebitNotes = async (cod_rnd) => {
+    const [rows] = await db.query('SELECT COUNT(*) as count FROM ndb_ren WHERE rnd_ndb = ?', [cod_rnd]);
+    return rows[0].count > 0;
+};
+
+// Obtener el estado de la OPG a la que pertenece la rendición
+const getOPGStatus = async (opg_rnd) => {
+    const [rows] = await db.query('SELECT sta_opg FROM opg_ren WHERE cod_opg = ?', [opg_rnd]);
+    return rows[0];
+};
+
 export const renditionModel = {
     getRenditionModel,
     getRenditionsModel,
@@ -60,4 +82,7 @@ export const renditionModel = {
     createRenditionModel,
     updateRenditionModel,
     deleteRenditionModel,
+    checkDuplicatePeriod,
+    renditionHasDebitNotes,
+    getOPGStatus,
 };

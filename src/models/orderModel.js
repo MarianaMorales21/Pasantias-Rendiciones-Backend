@@ -8,17 +8,11 @@ const getOrdersModel = async () => {
             c.ape_ctd, 
             s.nom_sta, 
             p.num_par, 
-            p.nom_par,
-            b.rif_ben,
-            b.nom_ben,
-            b.dir_ben
+            p.nom_par
         FROM opg_ren o
         LEFT JOIN ctd_ren c ON o.ced_opg = c.ced_ctd
         LEFT JOIN sta_ren s ON o.sta_opg = s.cod_sta
         LEFT JOIN par_ren p ON o.par_opg = p.cod_par
-        LEFT JOIN rnd_ren r ON r.opg_rnd = o.cod_opg
-        LEFT JOIN ndb_ren n ON n.rnd_ndb = r.cod_rnd
-        LEFT JOIN ben_ren b ON n.rif_ndb = b.rif_ben
     `);
     return rows;
 };
@@ -31,27 +25,47 @@ const getOrderModel = async ({ cod_opg }) => {
             c.ape_ctd, 
             s.nom_sta, 
             p.num_par, 
-            p.nom_par,
-            b.rif_ben,
-            b.nom_ben,
-            b.dir_ben
+            p.nom_par
         FROM opg_ren o
         LEFT JOIN ctd_ren c ON o.ced_opg = c.ced_ctd
         LEFT JOIN sta_ren s ON o.sta_opg = s.cod_sta
         LEFT JOIN par_ren p ON o.par_opg = p.cod_par
-        LEFT JOIN rnd_ren r ON r.opg_rnd = o.cod_opg
-        LEFT JOIN ndb_ren n ON n.rnd_ndb = r.cod_rnd
-        LEFT JOIN ben_ren b ON n.rif_ndb = b.rif_ben
         WHERE o.cod_opg = ?
     `, [cod_opg]);
     return rows[0];
 };
 
+// Verificar si num_opg ya existe (excluir cod_opg en actualizaciones)
+const checkDuplicateNumOpg = async (num_opg, excludeCodOpg = null) => {
+    const query = excludeCodOpg
+        ? 'SELECT COUNT(*) as count FROM opg_ren WHERE num_opg = ? AND cod_opg != ?'
+        : 'SELECT COUNT(*) as count FROM opg_ren WHERE num_opg = ?';
+    const params = excludeCodOpg ? [num_opg, excludeCodOpg] : [num_opg];
+    const [rows] = await db.query(query, params);
+    return rows[0].count > 0;
+};
+
+// Verificar si la OPG tiene rendiciones asociadas
+const opgHasRenditions = async (cod_opg) => {
+    const [rows] = await db.query('SELECT COUNT(*) as count FROM rnd_ren WHERE opg_rnd = ?', [cod_opg]);
+    return rows[0].count > 0;
+};
+
+// Verificar si la OPG tiene notas de débito asociadas en alguna rendición
+const opgHasDebitNotes = async (cod_opg) => {
+    const [rows] = await db.query(`
+        SELECT COUNT(n.cod_ndb) as count 
+        FROM ndb_ren n
+        JOIN rnd_ren r ON n.rnd_ndb = r.cod_rnd
+        WHERE r.opg_rnd = ?
+    `, [cod_opg]);
+    return rows[0].count > 0;
+};
 
 const createOrderModel = async ({ 
     num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, 
     mon_opg, con_opg, sta_opg, par_opg 
-}) =>{
+}) => {
     const [result] = await db.query(
         `INSERT INTO opg_ren 
         (num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg) 
@@ -86,10 +100,34 @@ const deleteOrderModel = async ({ cod_opg }) => {
     return result.affectedRows > 0;
 };
 
+// Obtener el monto neto gastado (notas de débito - reintegros) de la OPG
+const getOpgNetSpent = async (cod_opg) => {
+    const [notes] = await db.query(`
+        SELECT COALESCE(SUM(n.mon_ndb), 0) as total_spent
+        FROM ndb_ren n
+        JOIN rnd_ren r ON n.rnd_ndb = r.cod_rnd
+        WHERE r.opg_rnd = ?
+    `, [cod_opg]);
+
+    const [refunds] = await db.query(`
+        SELECT COALESCE(SUM(r.rnt_rnd), 0) as total_refunds
+        FROM rnd_ren r
+        WHERE r.opg_rnd = ?
+    `, [cod_opg]);
+
+    const spent = Number(notes[0].total_spent);
+    const refundsVal = Number(refunds[0].total_refunds);
+    return Math.max(0, spent - refundsVal);
+};
+
 export const orderModel = {
     getOrderModel,
     getOrdersModel,
     createOrderModel,
     updateOrderModel,
     deleteOrderModel,
+    checkDuplicateNumOpg,
+    opgHasRenditions,
+    opgHasDebitNotes,
+    getOpgNetSpent,
 };

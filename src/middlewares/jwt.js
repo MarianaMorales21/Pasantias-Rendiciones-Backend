@@ -21,7 +21,7 @@ export const authorizeRoles = (rolesPermitidos) => {
         if (userRole === 1) return next();
 
         // 2. Bloqueo de Módulo de Usuarios para No-Admins (Coordinador y Cuentadante)
-        if (req.originalUrl.includes('/users') && userRole !== 1) {
+        if (req.originalUrl.toLowerCase().includes('/users') && userRole !== 1) {
             return res.status(403).json({ message: "Acceso denegado: Solo administradores pueden gestionar usuarios" });
         }
 

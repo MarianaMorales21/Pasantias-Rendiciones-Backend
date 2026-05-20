@@ -23,7 +23,11 @@ const getRank = async (req, res) => {
 };
 
 const createRank = async (req, res) => {
-    const { nom_ran, abr_ran } = req.body;
+    let { nom_ran, abr_ran } = req.body;
+
+    if (typeof nom_ran === 'string') nom_ran = nom_ran.toUpperCase();
+    if (typeof abr_ran === 'string') abr_ran = abr_ran.toUpperCase();
+
     try {
         const newRank = await authoritiesModel.createRankModel({
             nom_ran, abr_ran
@@ -37,7 +41,11 @@ const createRank = async (req, res) => {
 
 const updateRank = async (req, res) => {
     const { cod_ran } = req.params;
-    const { nom_ran, abr_ran } = req.body;
+    let { nom_ran, abr_ran } = req.body;
+
+    if (typeof nom_ran === 'string') nom_ran = nom_ran.toUpperCase();
+    if (typeof abr_ran === 'string') abr_ran = abr_ran.toUpperCase();
+
     try {
         const updated = await authoritiesModel.updateRankModel(cod_ran, {
             nom_ran, abr_ran
@@ -85,7 +93,14 @@ const getAuthority = async (req, res) => {
 };
 
 const createAuthority = async (req, res) => {
-    const { nom_aut, ape_aut, pro_aut, dec_aut, ran_aut, ced_aut } = req.body;
+    let { nom_aut, ape_aut, pro_aut, dec_aut, ran_aut, ced_aut } = req.body;
+
+    if (typeof nom_aut === 'string') nom_aut = nom_aut.toUpperCase();
+    if (typeof ape_aut === 'string') ape_aut = ape_aut.toUpperCase();
+    if (typeof dec_aut === 'string') dec_aut = dec_aut.toUpperCase();
+    if (typeof ran_aut === 'string') ran_aut = ran_aut.toUpperCase();
+    if (typeof ced_aut === 'string') ced_aut = ced_aut.toUpperCase();
+
     try {
         const newAuthority = await authoritiesModel.createAuthorityModel({
             nom_aut,
@@ -104,7 +119,14 @@ const createAuthority = async (req, res) => {
 
 const updateAuthority = async (req, res) => {
     const { cod_aut } = req.params;
-    const { nom_aut, ape_aut, pro_aut, dec_aut, ran_aut, ced_aut } = req.body;
+    let { nom_aut, ape_aut, pro_aut, dec_aut, ran_aut, ced_aut } = req.body;
+
+    if (typeof nom_aut === 'string') nom_aut = nom_aut.toUpperCase();
+    if (typeof ape_aut === 'string') ape_aut = ape_aut.toUpperCase();
+    if (typeof dec_aut === 'string') dec_aut = dec_aut.toUpperCase();
+    if (typeof ran_aut === 'string') ran_aut = ran_aut.toUpperCase();
+    if (typeof ced_aut === 'string') ced_aut = ced_aut.toUpperCase();
+
     try {
         const updated = await authoritiesModel.updateAuthorityModel(cod_aut, {
             nom_aut,

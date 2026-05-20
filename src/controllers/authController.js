@@ -48,7 +48,9 @@ export const login = async (req, res) => {
             ced_usu: userFound.ced_usu,
             nom_usu: userFound.nom_usu,
             rol_usu: userFound.rol_usu,
-            rol_nom: userFound.rol_nom
+            rol_nom: userFound.rol_nom,
+            ema_usu: userFound.ema_usu,
+            sta_usu: userFound.sta_usu
         });
 
     } catch (error) {
@@ -74,7 +76,8 @@ export const profile = async (req, res) => {
             nom_usu: userFound.nom_usu,
             rol_usu: userFound.rol_usu,
             rol_nom: userFound.rol_nom,
-            ema_usu: userFound.ema_usu
+            ema_usu: userFound.ema_usu,
+            sta_usu: userFound.sta_usu
         });
     } catch (error) {
         return res.status(500).json({ message: "Error al obtener perfil" });

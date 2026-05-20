@@ -1,4 +1,11 @@
 import { programsModel } from "../models/programsModel.js";
+import { db } from "../database/connection.database.js";
+
+// Verificar si el programa está en uso en notas de débito
+const programIsInUse = async (cod_pro) => {
+    const [rows] = await db.query('SELECT COUNT(*) as count FROM ndb_ren WHERE pro_ndb = ?', [cod_pro]);
+    return rows[0].count > 0;
+};
 
 const getPrograms = async (req, res) => {
     try {
@@ -13,7 +20,7 @@ const getPrograms = async (req, res) => {
 const getProgram = async (req, res) => {
     const { cod_pro } = req.params;
     try {
-        const program = await programsModel.getProgamModel({ cod_pro });
+        const program = await programsModel.getProgramModel({ cod_pro });
         if (!program) {
             return res.status(404).json({ message: 'Programa no Encontrado' });
         }
@@ -53,6 +60,12 @@ const updateProgram = async (req, res) => {
 const deleteProgram = async (req, res) => {
     const { cod_pro } = req.params;
     try {
+        // No eliminar si está en uso en notas de débito
+        const inUse = await programIsInUse(cod_pro);
+        if (inUse) {
+            return res.status(409).json({ message: 'No se puede eliminar este Programa porque tiene Notas de Débito asociadas.' });
+        }
+
         const isDeleted = await programsModel.deleteProgramModel({ cod_pro });
         if (!isDeleted) {
             return res.status(404).json({ message: 'Programa no Encontrado' });

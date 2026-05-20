@@ -82,6 +82,14 @@ const updateUser = async (req, res) => {
 const deleteUsers = async (req, res) => {
     const { ced_usu } = req.params;
     try {
+        const user = await userModel.getUserModel({ ced_usu });
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no Encontrado' });
+        }
+        if (user.sta_usu === 1 || (user.nom_sta && user.nom_sta.toLowerCase() === 'activo')) {
+            return res.status(400).json({ message: 'No se puede eliminar un usuario en estado activo' });
+        }
+
         const isDeleted = await userModel.deleteUserModel({ ced_usu });
         
         if (!isDeleted) {

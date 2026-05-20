@@ -6,24 +6,37 @@ export const getRenditionList = async (req, res) => {
     try {
         const renditions = await reportsModel.getRenditionListModel();
 
+        // Calcular porcentaje acumulativo por OPG (considerando reintegros)
+        let lastOpg = null;
+        let cumulativeNeto = 0;
+
         const list = renditions.map(r => {
             const montoOpg = parseFloat(r.mon_opg);
             const totalRendido = parseFloat(r.total_rendido);
-            const porcentaje = montoOpg > 0 ? ((totalRendido * 100) / montoOpg).toFixed(2) : '0.00';
-            
+            const reintegro = parseFloat(r.rnt_rnd || 0);
+
+            if (r.cod_opg !== lastOpg) {
+                cumulativeNeto = 0;
+                lastOpg = r.cod_opg;
+            }
+
+            cumulativeNeto += totalRendido - reintegro;
+            const porcentaje = montoOpg > 0 ? ((cumulativeNeto * 100) / montoOpg) : 0;
+
             return {
                 cod_rnd: r.cod_rnd,
                 num_rnd: r.num_rnd,
                 fec_rnd: r.fec_rnd,
                 prd_rnd: r.prd_rnd,
                 avs_rnd: r.avs_rnd,
+                rnt_rnd: reintegro,
                 cod_opg: r.cod_opg,
                 num_opg: r.num_opg,
                 fec_opg: r.fec_opg,
                 mon_opg: montoOpg,
                 total_rendido: totalRendido,
-                porcentaje: parseFloat(porcentaje),
-                label: `OPG ${r.num_opg} - Rendición ${r.num_rnd} (${porcentaje}%)`
+                porcentaje: parseFloat(porcentaje.toFixed(2)),
+                label: `OPG ${r.num_opg} - R${r.num_rnd} (${porcentaje.toFixed(1)}% acum.)`
             };
         });
 
@@ -31,6 +44,17 @@ export const getRenditionList = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ ok: false, message: 'Error al obtener lista de rendiciones' });
+    }
+};
+
+export const getOPGExecutionByRendition = async (req, res) => {
+    try {
+        const { cod_rnd } = req.params;
+        const data = await reportsModel.getOPGExecutionByRenditionModel(cod_rnd);
+        res.json({ ok: true, data });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ ok: false, message: 'Error al obtener ejecución de OPG' });
     }
 };
 
@@ -46,17 +70,18 @@ export const getDetailedReport = async (req, res) => {
 
         const details = await reportsModel.getRenditionDetailsModel(cod_rnd);
         
-        // Usamos el nuevo modelo de resumen para obtener montos históricos
-        const summaryData = await reportsModel.getOPGExecutionSummaryModel(header.cod_opg);
+        // Obtener cálculos históricos acumulados de rendiciones anteriores y reintegros
+        const calculationData = await reportsModel.getDetailedReportCalculationsModel(cod_rnd, header.cod_opg);
 
         const montoOpg = parseFloat(header.mon_opg);
         const montoRendidoActual = details.reduce((acc, curr) => acc + parseFloat(curr.mon_drn), 0);
+        const reintegro = header.rnt_rnd ? parseFloat(header.rnt_rnd) : 0;
+
+        // Fórmulas requeridas de reintegro
+        const montoAnterior = calculationData.previousSpent - calculationData.previousReintegros - reintegro;
+        const montoPorRendir = montoOpg - montoAnterior - montoRendidoActual;
         
-        // El monto anterior es el total ejecutado de la OPG menos lo de esta rendición
-        const montoAnterior = parseFloat(summaryData.total_ejecutado) - montoRendidoActual;
-        const montoPorRendir = parseFloat(summaryData.saldo_disponible);
-        
-        const porcentajeRendido = montoOpg > 0 ? ((parseFloat(summaryData.total_ejecutado) * 100) / montoOpg) : 0;
+        const porcentajeRendido = montoOpg > 0 ? (((montoAnterior + montoRendidoActual) * 100) / montoOpg) : 0;
         const porcentajePorRendir = 100 - porcentajeRendido;
 
         // Agrupar detalles por programa (nom_pro ahora viene del JOIN)
@@ -98,6 +123,7 @@ export const getDetailedReport = async (req, res) => {
                 montoAsignado: montoOpg,
                 montoRendidoAnterior: montoAnterior,
                 montoRendido: montoRendidoActual,
+                reintegro,
                 montoPorRendir,
                 porcentajeRendido: parseFloat(porcentajeRendido.toFixed(2)),
                 porcentajePorRendir: parseFloat(porcentajePorRendir.toFixed(2)),
@@ -105,6 +131,7 @@ export const getDetailedReport = async (req, res) => {
                 montoAsignadoFmt: formatearMonto(montoOpg),
                 montoRendidoAnteriorFmt: formatearMonto(montoAnterior),
                 montoRendidoFmt: formatearMonto(montoRendidoActual),
+                reintegroFmt: formatearMonto(reintegro),
                 montoPorRendirFmt: formatearMonto(montoPorRendir),
             }
         });
@@ -121,9 +148,13 @@ export const getFullOPGReport = async (req, res) => {
         const history = await reportsModel.getFullOPGHistoryModel(cod_opg);
         const summary = await reportsModel.getOPGExecutionSummaryModel(cod_opg);
 
+        const monOpg = summary ? Number(summary.monto_inicial || 0) : 0;
+        const renditions = await reportsModel.getOPGRenditionsProgressModel(cod_opg, monOpg);
+
         res.json({
             ok: true,
             history,
+            renditions,
             summary: {
                 ...summary,
                 monto_inicial_fmt: formatearMonto(summary.monto_inicial),
@@ -145,13 +176,19 @@ export const getActaReport = async (req, res) => {
         if (!data) return res.status(404).json({ ok: false, message: 'Datos no encontrados' });
 
         const details = await reportsModel.getRenditionDetailsModel(cod_rnd);
-        const summary = await reportsModel.getOPGExecutionSummaryModel(data.cod_opg);
+        const calculationData = await reportsModel.getDetailedReportCalculationsModel(cod_rnd, data.cod_opg);
 
         // Cálculos de montos
         const montoRendido = details.reduce((acc, curr) => acc + parseFloat(curr.mon_drn), 0);
         const montoAsignado = parseFloat(data.mon_opg);
-        const totalAcumulado = parseFloat(summary.total_ejecutado);
-        const montoPorRendir = parseFloat(summary.saldo_disponible);
+        const reintegro = data.rnt_rnd ? parseFloat(data.rnt_rnd) : 0;
+
+        // Monto Anterior ajustado con reintegro
+        const montoAnterior = calculationData.previousSpent - calculationData.previousReintegros - reintegro;
+
+        // El total acumulado a efectos de presupuesto/rendición es el gastado anterior ajustado + el gastado actual
+        const totalAcumulado = montoAnterior + montoRendido;
+        const montoPorRendir = montoAsignado - totalAcumulado;
 
         // Porcentajes
         const porcentajeRendido = montoAsignado > 0 ? ((totalAcumulado * 100) / montoAsignado) : 0;
@@ -193,5 +230,15 @@ export const getActaReport = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ ok: false, message: 'Error al generar el acta' });
+    }
+};
+
+export const getDashboardStats = async (req, res) => {
+    try {
+        const stats = await reportsModel.getDashboardProgramStatsModel();
+        res.json({ ok: true, data: stats });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ ok: false, message: 'Error al obtener estadísticas del dashboard' });
     }
 };
