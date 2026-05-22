@@ -69,7 +69,7 @@ const getDebitNoteBudgetModel = async (rnd_ndb, excludedCodNdb = null) => {
     }
 
     let notesQuery = `
-        SELECT cod_ndb, rnd_ndb, mon_ndb
+        SELECT cod_ndb, rnd_ndb, mon_ndb, sub_ndb
         FROM ndb_ren
         WHERE rnd_ndb IN (?)
     `;
@@ -82,7 +82,7 @@ const getDebitNoteBudgetModel = async (rnd_ndb, excludedCodNdb = null) => {
 
     const [notesRows] = await db.query(notesQuery, queryParams);
 
-    // Monto rendido en rendiciones anteriores
+    // Monto rendido en rendiciones anteriores (siempre mon_ndb)
     const previousSpent = notesRows
         .filter(note => previousRndIds.includes(note.rnd_ndb))
         .reduce((acc, curr) => acc + Number(curr.mon_ndb || 0), 0);
@@ -102,7 +102,9 @@ const getDebitNoteBudgetModel = async (rnd_ndb, excludedCodNdb = null) => {
     // Monto gastado en la rendición actual (excluyendo la nota que se edita)
     const currentSpent = notesRows
         .filter(note => note.rnd_ndb === selectedRnd.cod_rnd)
-        .reduce((acc, curr) => acc + Number(curr.mon_ndb || 0), 0);
+        .reduce((acc, curr) => {
+            return acc + Number(curr.mon_ndb || 0);
+        }, 0);
 
     const remaining = maxAvailable - currentSpent;
 

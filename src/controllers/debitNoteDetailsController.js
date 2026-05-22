@@ -11,10 +11,14 @@ const getDetailsByDebitNote = async (req, res) => {
     }
 };
 
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
 const createDebitNoteDetail = async (req, res) => {
-    const { cab_drn, par_drn, des_drn, mon_drn } = req.body;
+    let { cab_drn, par_drn, des_drn, mon_drn } = req.body;
     try {
-        const amount = Number(mon_drn);
+        des_drn = (des_drn || '').toUpperCase();
+
+        const amount = round2(mon_drn);
         if (Number.isNaN(amount) || amount <= 0) {
             return res.status(400).json({ message: 'El monto del detalle de gasto debe ser mayor a cero' });
         }
@@ -24,7 +28,7 @@ const createDebitNoteDetail = async (req, res) => {
             return res.status(404).json({ message: 'Nota de Débito no encontrada' });
         }
 
-        if (amount > validation.remaining) {
+        if (amount > round2(validation.remaining)) {
             return res.status(400).json({
                 message: `El monto del detalle excede el disponible de la Nota de Débito. Disponible: Bs. ${validation.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
             });
@@ -45,9 +49,11 @@ const createDebitNoteDetail = async (req, res) => {
 
 const updateDebitNoteDetail = async (req, res) => {
     const { cod_drn } = req.params;
-    const { cab_drn, par_drn, des_drn, mon_drn } = req.body;
+    let { cab_drn, par_drn, des_drn, mon_drn } = req.body;
     try {
-        const amount = Number(mon_drn);
+        des_drn = (des_drn || '').toUpperCase();
+
+        const amount = round2(mon_drn);
         if (Number.isNaN(amount) || amount <= 0) {
             return res.status(400).json({ message: 'El monto del detalle de gasto debe ser mayor a cero' });
         }
@@ -57,7 +63,7 @@ const updateDebitNoteDetail = async (req, res) => {
             return res.status(404).json({ message: 'Nota de Débito no encontrada' });
         }
 
-        if (amount > validation.remaining) {
+        if (amount > round2(validation.remaining)) {
             return res.status(400).json({
                 message: `El monto del detalle excede el disponible de la Nota de Débito. Disponible: Bs. ${validation.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
             });

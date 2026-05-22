@@ -120,6 +120,28 @@ const getOpgNetSpent = async (cod_opg) => {
     return Math.max(0, spent - refundsVal);
 };
 
+const autoUpdateOpgStatus = async (cod_opg) => {
+    if (!cod_opg) return;
+
+    const [[pagadoRow], [pendienteRow]] = await Promise.all([
+        db.query('SELECT cod_sta FROM sta_ren WHERE nom_sta = ?', ['Pagado']),
+        db.query('SELECT cod_sta FROM sta_ren WHERE nom_sta = ?', ['Pendiente'])
+    ]);
+
+    const PAGADO_ID = pagadoRow[0]?.cod_sta;
+    const PENDIENTE_ID = pendienteRow[0]?.cod_sta;
+    if (!PAGADO_ID || !PENDIENTE_ID) return;
+
+    const [opgRows] = await db.query('SELECT mon_opg FROM opg_ren WHERE cod_opg = ?', [cod_opg]);
+    if (!opgRows[0]) return;
+    const mon_opg = Number(opgRows[0].mon_opg);
+
+    const netSpent = await getOpgNetSpent(cod_opg);
+    const newStatusId = netSpent >= mon_opg ? PAGADO_ID : PENDIENTE_ID;
+
+    await db.query('UPDATE opg_ren SET sta_opg = ? WHERE cod_opg = ?', [newStatusId, cod_opg]);
+};
+
 export const orderModel = {
     getOrderModel,
     getOrdersModel,
@@ -130,4 +152,5 @@ export const orderModel = {
     opgHasRenditions,
     opgHasDebitNotes,
     getOpgNetSpent,
+    autoUpdateOpgStatus,
 };

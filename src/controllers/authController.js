@@ -32,6 +32,14 @@ export const login = async (req, res) => {
 
         if (!isMatch) return res.status(400).json({ message: "Contraseña incorrecta" });
 
+        // Bloquear inicio de sesión si el usuario está suspendido o inactivo
+        if (userFound.nom_sta === 'Suspendido' || userFound.nom_sta === 'Inactivo') {
+            return res.status(403).json({
+                message: "Usuario suspendido. Contacte al administrador.",
+                suspended: true
+            });
+        }
+
         const token = await createAccesToken({ 
             id: userFound.ced_usu, 
             rol: userFound.rol_usu,
@@ -50,7 +58,8 @@ export const login = async (req, res) => {
             rol_usu: userFound.rol_usu,
             rol_nom: userFound.rol_nom,
             ema_usu: userFound.ema_usu,
-            sta_usu: userFound.sta_usu
+            sta_usu: userFound.sta_usu,
+            nom_sta: userFound.nom_sta
         });
 
     } catch (error) {
@@ -69,7 +78,17 @@ export const logout = (req, res) => {
 export const profile = async (req, res) => {
     try {
         const userFound = await userModel.getUserModel({ ced_usu: req.user.id });
-        if (!userFound) return res.status(400).json({ message: "Usuario no encontrado" });
+        // Si el usuario fue eliminado o no existe, cerrar sesión
+        if (!userFound) {
+            res.cookie('token', '', { expires: new Date(0) });
+            return res.status(401).json({ message: "Usuario no encontrado" });
+        }
+
+        // Si el usuario está suspendido o inactivo, cerrar sesión
+        if (userFound.nom_sta === 'Suspendido' || userFound.nom_sta === 'Inactivo') {
+            res.cookie('token', '', { expires: new Date(0) });
+            return res.status(401).json({ message: "Usuario suspendido. Contacte al administrador." });
+        }
 
         return res.json({
             ced_usu: userFound.ced_usu,
@@ -77,7 +96,8 @@ export const profile = async (req, res) => {
             rol_usu: userFound.rol_usu,
             rol_nom: userFound.rol_nom,
             ema_usu: userFound.ema_usu,
-            sta_usu: userFound.sta_usu
+            sta_usu: userFound.sta_usu,
+            nom_sta: userFound.nom_sta
         });
     } catch (error) {
         return res.status(500).json({ message: "Error al obtener perfil" });

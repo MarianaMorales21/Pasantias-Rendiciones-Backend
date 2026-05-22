@@ -1,4 +1,5 @@
 import { renditionModel } from "../models/renditionModel.js";
+import { orderModel } from "../models/orderModel.js";
 
 // Estado ID que representa "Cerrado" — ajustar según la BD
 const CLOSED_STATE_ID = 3;
@@ -37,8 +38,11 @@ const getRendition = async (req, res) => {
 };
 
 const createRendition = async (req, res) => {
-    const { num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd } = req.body;
+    let { num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd } = req.body;
     try {
+        // Normalizar mayúsculas
+        prd_rnd = (prd_rnd || '').toUpperCase();
+
         // Verificar que la fecha no sea futura
         if (fec_rnd && new Date(fec_rnd) > new Date()) {
             return res.status(400).json({ message: 'La fecha de la Rendición no puede ser una fecha futura.' });
@@ -53,6 +57,9 @@ const createRendition = async (req, res) => {
         const newRnd = await renditionModel.createRenditionModel({ 
             num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd , rnt_rnd
         });
+
+        if (opg_rnd) await orderModel.autoUpdateOpgStatus(opg_rnd);
+
         res.status(201).json(newRnd);
     } catch (error) {
         console.error('Error al Crear la Rendición', error);
@@ -62,8 +69,11 @@ const createRendition = async (req, res) => {
 
 const updateRendition = async (req, res) => {
     const { cod_rnd } = req.params;
-    const { num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd } = req.body;
+    let { num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd } = req.body;
     try {
+        // Normalizar mayúsculas
+        prd_rnd = (prd_rnd || '').toUpperCase();
+
         // Verificar si la rendición está cerrada
         const existing = await renditionModel.getRenditionModel({ cod_rnd });
         if (existing && existing.sta_rnd === CLOSED_STATE_ID) {
@@ -85,6 +95,9 @@ const updateRendition = async (req, res) => {
             num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd, rnt_rnd
         });
         if (!updated) return res.status(404).json({ message: 'Rendición no encontrada o sin cambios' });
+
+        if (opg_rnd) await orderModel.autoUpdateOpgStatus(opg_rnd);
+
         res.json({ message: 'Rendición actualizada con éxito', data: updated });
     } catch (error) {
         console.error('Error al Editar la Rendición', error);
@@ -101,8 +114,14 @@ const deleteRendition = async (req, res) => {
             return res.status(409).json({ message: 'No se puede eliminar esta Rendición porque tiene Notas de Débito asociadas. Elimine primero las notas.' });
         }
 
+        const existing = await renditionModel.getRenditionModel({ cod_rnd });
+        const opg_rnd = existing?.opg_rnd;
+
         const result = await renditionModel.deleteRenditionModel({ cod_rnd });
         if (!result) return res.status(404).json({ message: 'Rendición no encontrada' });
+
+        if (opg_rnd) await orderModel.autoUpdateOpgStatus(opg_rnd);
+
         res.json({ message: 'Rendición eliminada con éxito' });
     } catch (error) {
         console.error('Error al Eliminar la Rendición', error);

@@ -7,9 +7,14 @@ const rifIsInUse = async (rif_ben) => {
     return rows[0].count > 0;
 };
 
-// Validar formato RIF venezolano (J-12345678-9)
+// Validar formato de identificación:
+// V = cédula (7-8 dígitos)
+// G = RIF con guion antes del último dígito (ej: G-12345678-1)
 const isValidRif = (rif) => {
-    return /^[VJEGP]-?\d{8}-?\d$/.test(rif.trim().toUpperCase());
+    const trimmed = rif.trim().toUpperCase();
+    if (/^V-?\d{7,8}$/.test(trimmed)) return true;
+    if (/^G-?\d+-\d$/.test(trimmed)) return true;
+    return false;
 };
 
 const getBeneficiarys = async (req, res) => {
@@ -37,11 +42,15 @@ const getBeneficiary = async (req, res) => {
 };
 
 const createBeneficiary = async (req, res) => {
-    const { rif_ben, nom_ben, dir_ben, sta_ben } = req.body;
+    let { rif_ben, nom_ben, dir_ben, sta_ben } = req.body;
     try {
+        // Normalizar mayúsculas (solo RIF y dirección, el nombre se respeta)
+        rif_ben = (rif_ben || '').toUpperCase();
+        dir_ben = (dir_ben || '').toUpperCase();
+
         // Validar formato RIF
         if (!isValidRif(rif_ben)) {
-            return res.status(400).json({ message: 'El formato del RIF no es válido. Debe ser: J-12345678-9 (V, J, E, G o P seguido de 8 dígitos y un dígito verificador).' });
+            return res.status(400).json({ message: 'El formato del RIF no es válido. Para tipo V use 7-8 dígitos (V-12345678). Para tipo G use el formato con guion antes del último dígito (G-12345678-1).' });
         }
 
         // Verificar duplicado de RIF
@@ -60,8 +69,11 @@ const createBeneficiary = async (req, res) => {
 
 const updateBeneficiary = async (req, res) => {
     const { rif_ben } = req.params;
-    const { nom_ben, dir_ben, sta_ben } = req.body;
+    let { nom_ben, dir_ben, sta_ben } = req.body;
     try {
+        // Normalizar mayúsculas (solo dirección, el nombre se respeta)
+        dir_ben = (dir_ben || '').toUpperCase();
+
         const updatedBeneficiary = await beneficiaryModel.updateBeneficiaryModel(rif_ben, { nom_ben, dir_ben, sta_ben });
         if (!updatedBeneficiary) {
             return res.status(404).json({ message: 'Beneficiario no Encontrado o no se realizaron cambios' });

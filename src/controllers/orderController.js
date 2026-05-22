@@ -25,17 +25,43 @@ const getOrder = async (req, res) => {
 };
 
 const createOrder = async (req, res) => {
-    const { num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
+    let { num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
     try {
         // Validar monto mayor a 0
         if (!mon_opg || Number(mon_opg) <= 0) {
             return res.status(400).json({ message: 'El monto de la Orden de Pago debe ser mayor a cero.' });
         }
 
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        // Validar que la fecha de emisión no sea futura
+        if (fec_opg && new Date(fec_opg) > today) {
+            return res.status(400).json({ message: 'La fecha de emisión no puede ser posterior a la fecha actual.' });
+        }
+
+        // Validar que la fecha de decreto no sea futura
+        if (fdc_opg && new Date(fdc_opg) > today) {
+            return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha actual.' });
+        }
+
         // Validar que la fecha de decreto no sea posterior a la fecha de la orden
         if (fdc_opg && fec_opg && new Date(fdc_opg) > new Date(fec_opg)) {
             return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha de la Orden de Pago.' });
         }
+
+        // Validar fecha de cobro
+        if (fco_opg) {
+            if (new Date(fco_opg) > today) {
+                return res.status(400).json({ message: 'La fecha de cobro no puede ser posterior a la fecha actual.' });
+            }
+            if (fec_opg && new Date(fco_opg) < new Date(fec_opg)) {
+                return res.status(400).json({ message: 'La fecha de cobro no puede ser anterior a la fecha de emisión.' });
+            }
+        }
+
+        // Normalizar mayúsculas
+        con_opg = (con_opg || '').toUpperCase();
 
         // Validar número de orden no duplicado
         const isDuplicate = await orderModel.checkDuplicateNumOpg(num_opg);
@@ -55,17 +81,43 @@ const createOrder = async (req, res) => {
 
 const updateOrder = async (req, res) => {
     const { cod_opg } = req.params;
-    const { num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
+    let { num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
     try {
         // Validar monto mayor a 0
         if (!mon_opg || Number(mon_opg) <= 0) {
             return res.status(400).json({ message: 'El monto de la Orden de Pago debe ser mayor a cero.' });
         }
 
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        // Validar que la fecha de emisión no sea futura
+        if (fec_opg && new Date(fec_opg) > today) {
+            return res.status(400).json({ message: 'La fecha de emisión no puede ser posterior a la fecha actual.' });
+        }
+
+        // Validar que la fecha de decreto no sea futura
+        if (fdc_opg && new Date(fdc_opg) > today) {
+            return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha actual.' });
+        }
+
         // Validar que la fecha de decreto no sea posterior a la fecha de la orden
         if (fdc_opg && fec_opg && new Date(fdc_opg) > new Date(fec_opg)) {
             return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha de la Orden de Pago.' });
         }
+
+        // Validar fecha de cobro
+        if (fco_opg) {
+            if (new Date(fco_opg) > today) {
+                return res.status(400).json({ message: 'La fecha de cobro no puede ser posterior a la fecha actual.' });
+            }
+            if (fec_opg && new Date(fco_opg) < new Date(fec_opg)) {
+                return res.status(400).json({ message: 'La fecha de cobro no puede ser anterior a la fecha de emisión.' });
+            }
+        }
+
+        // Normalizar mayúsculas
+        con_opg = (con_opg || '').toUpperCase();
 
         // Validar número de orden no duplicado (excluir la propia orden)
         const isDuplicate = await orderModel.checkDuplicateNumOpg(num_opg, cod_opg);

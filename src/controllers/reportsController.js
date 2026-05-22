@@ -73,13 +73,14 @@ export const getDetailedReport = async (req, res) => {
         // Obtener cálculos históricos acumulados de rendiciones anteriores y reintegros
         const calculationData = await reportsModel.getDetailedReportCalculationsModel(cod_rnd, header.cod_opg);
 
+        const round2 = (n) => Math.round(n * 100) / 100;
         const montoOpg = parseFloat(header.mon_opg);
         const montoRendidoActual = details.reduce((acc, curr) => acc + parseFloat(curr.mon_drn), 0);
         const reintegro = header.rnt_rnd ? parseFloat(header.rnt_rnd) : 0;
 
         // Fórmulas requeridas de reintegro
         const montoAnterior = calculationData.previousSpent - calculationData.previousReintegros - reintegro;
-        const montoPorRendir = montoOpg - montoAnterior - montoRendidoActual;
+        const montoPorRendir = round2(montoOpg - montoAnterior - montoRendidoActual);
         
         const porcentajeRendido = montoOpg > 0 ? (((montoAnterior + montoRendidoActual) * 100) / montoOpg) : 0;
         const porcentajePorRendir = 100 - porcentajeRendido;
@@ -151,15 +152,17 @@ export const getFullOPGReport = async (req, res) => {
         const monOpg = summary ? Number(summary.monto_inicial || 0) : 0;
         const renditions = await reportsModel.getOPGRenditionsProgressModel(cod_opg, monOpg);
 
+        const saldoRedondeado = Math.round((summary?.saldo_disponible ?? 0) * 100) / 100;
         res.json({
             ok: true,
             history,
             renditions,
             summary: {
                 ...summary,
+                saldo_disponible: saldoRedondeado,
                 monto_inicial_fmt: formatearMonto(summary.monto_inicial),
                 total_ejecutado_fmt: formatearMonto(summary.total_ejecutado),
-                saldo_disponible_fmt: formatearMonto(summary.saldo_disponible)
+                saldo_disponible_fmt: formatearMonto(saldoRedondeado)
             }
         });
     } catch (error) {
@@ -188,7 +191,7 @@ export const getActaReport = async (req, res) => {
 
         // El total acumulado a efectos de presupuesto/rendición es el gastado anterior ajustado + el gastado actual
         const totalAcumulado = montoAnterior + montoRendido;
-        const montoPorRendir = montoAsignado - totalAcumulado;
+        const montoPorRendir = Math.round((montoAsignado - totalAcumulado) * 100) / 100;
 
         // Porcentajes
         const porcentajeRendido = montoAsignado > 0 ? ((totalAcumulado * 100) / montoAsignado) : 0;

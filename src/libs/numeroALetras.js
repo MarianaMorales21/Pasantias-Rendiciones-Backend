@@ -81,5 +81,7 @@ export function numeroALetrasConDecimales(numero) {
  * Formatea un número al estilo venezolano: 591.895,63
  */
 export function formatearMonto(numero) {
-    return Number(numero).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const valor = Number(numero);
+    if (Math.abs(valor) < 0.005) return "0,00";
+    return valor.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

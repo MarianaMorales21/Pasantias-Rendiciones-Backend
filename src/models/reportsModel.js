@@ -162,9 +162,8 @@ const getOPGExecutionByRenditionModel = async (cod_rnd) => {
             ),0) AS monto_rendido_actual,
 
             COALESCE((
-                SELECT SUM(d.mon_drn)
+                SELECT SUM(n.mon_ndb)
                 FROM ndb_ren n
-                JOIN drn_ren d ON d.cab_drn = n.cod_ndb
                 JOIN rnd_ren r2 ON n.rnd_ndb = r2.cod_rnd
                 WHERE r2.opg_rnd = o.cod_opg
                   AND r2.num_rnd < r.num_rnd
@@ -226,13 +225,12 @@ const getDetailedReportCalculationsModel = async (cod_rnd, cod_opg) => {
     // Rendiciones anteriores
     const previousRndIds = sortedRnds.slice(0, sliceIndex).map(r => r.cod_rnd);
 
-    // 2. Obtener gastos de rendiciones anteriores
+    // 2. Obtener gastos de rendiciones anteriores (usando mon_ndb, no sub_ndb)
     let previousSpent = 0;
     if (previousRndIds.length > 0) {
         const [spentRow] = await db.query(`
-            SELECT COALESCE(SUM(d.mon_drn), 0) AS total
-            FROM drn_ren d
-            JOIN ndb_ren n ON d.cab_drn = n.cod_ndb
+            SELECT COALESCE(SUM(n.mon_ndb), 0) AS total
+            FROM ndb_ren n
             WHERE n.rnd_ndb IN (?)
         `, [previousRndIds]);
         previousSpent = parseFloat(spentRow[0].total);
@@ -253,10 +251,9 @@ const getOPGRenditionsProgressModel = async (cod_opg, monOpg) => {
             r.cod_rnd,
             r.num_rnd,
             COALESCE(r.rnt_rnd, 0) AS reintegro,
-            COALESCE(SUM(d.mon_drn), 0) AS monto_rendido
+            COALESCE(SUM(n.mon_ndb), 0) AS monto_rendido
         FROM rnd_ren r
         LEFT JOIN ndb_ren n ON r.cod_rnd = n.rnd_ndb
-        LEFT JOIN drn_ren d ON n.cod_ndb = d.cab_drn
         WHERE r.opg_rnd = ?
         GROUP BY r.cod_rnd, r.num_rnd, r.rnt_rnd
         ORDER BY r.num_rnd ASC

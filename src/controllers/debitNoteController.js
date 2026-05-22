@@ -1,4 +1,11 @@
 import { debitNoteModel } from "../models/debitNoteModel.js";
+import { renditionModel } from "../models/renditionModel.js";
+import { orderModel } from "../models/orderModel.js";
+
+const getOpgFromRendition = async (cod_rnd) => {
+    const rendition = await renditionModel.getRenditionModel({ cod_rnd });
+    return rendition?.opg_rnd || null;
+};
 
 const getDebitNotes = async (req, res) => {
     try {
@@ -33,18 +40,20 @@ const getDebitNote = async (req, res) => {
     }
 };
 
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
 const validateDebitNoteAmount = async (rnd_ndb, mon_ndb, excludedCodNdb = null) => {
     const budget = await debitNoteModel.getDebitNoteBudgetModel(rnd_ndb, excludedCodNdb);
     if (!budget) {
         return { valid: false, message: 'Rendición no encontrada' };
     }
 
-    const amount = Number(mon_ndb);
+    const amount = round2(mon_ndb);
     if (Number.isNaN(amount) || amount <= 0) {
         return { valid: false, message: 'El monto de la Nota de Debito debe ser mayor a cero' };
     }
 
-    if (amount > budget.remaining) {
+    if (amount > round2(budget.remaining)) {
         return {
             valid: false,
             message: `El monto de la Nota de Debito excede el disponible de la Orden de Pago. Disponible: Bs. ${budget.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
@@ -55,8 +64,48 @@ const validateDebitNoteAmount = async (rnd_ndb, mon_ndb, excludedCodNdb = null) 
 };
 
 const createDebitNote = async (req, res) => {
-    const { num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
+    let { num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
     try {
+        // Validar que la fecha no sea futura
+        if (fec_ndb && new Date(fec_ndb) > new Date()) {
+            return res.status(400).json({ message: 'La fecha de la Nota de Débito no puede ser posterior a la fecha actual.' });
+        }
+
+        // Normalizar mayúsculas
+        con_ndb = (con_ndb || '').toUpperCase();
+        if (num_ndb && !num_ndb.startsWith('ND-')) {
+            num_ndb = 'ND-' + num_ndb;
+        }
+
+        // Auto-calcular mon_ndb cuando hay retenciones (sub_ndb - retenciones)
+        if (Number(sub_ndb) > 0 && (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0)) {
+            mon_ndb = round2(Number(sub_ndb || 0) - Number(rtc_ndb || 0) - Number(tbf_ndb || 0) - Number(isl_ndb || 0));
+        }
+
+        // Validar retenciones contra el subtotal (subtotal >= suma retenciones)
+        const sumRet = Number(rtc_ndb || 0) + Number(tbf_ndb || 0) + Number(isl_ndb || 0);
+        if ((Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) && Number(sub_ndb || 0) < sumRet) {
+            return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede ser menor a la suma de las retenciones (Bs. ${sumRet.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+        }
+
+        // Validar retenciones individuales contra el subtotal
+        if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
+            const sub = Number(sub_ndb || 0);
+            if (Number(rtc_ndb || 0) > sub || Number(tbf_ndb || 0) > sub || Number(isl_ndb || 0) > sub) {
+                return res.status(400).json({ message: `Ninguna retención individual puede superar el subtotal (Bs. ${sub.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+            }
+        }
+
+        // Validar retenciones contra el monto de la OPG (estrictamente menor, no <=)
+        if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
+            const cod_opg = await getOpgFromRendition(rnd_ndb);
+            const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
+            const monOpg = opg ? Number(opg.mon_opg || 0) : 0;
+            if (Number(rtc_ndb || 0) >= monOpg || Number(tbf_ndb || 0) >= monOpg || Number(isl_ndb || 0) >= monOpg) {
+                return res.status(400).json({ message: `Ninguna retención puede igualar o superar el monto de la Orden de Pago (Bs. ${monOpg.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+            }
+        }
+
         // Validar número de nota no duplicado
         const isDuplicate = await debitNoteModel.checkDuplicateNumNdb(num_ndb);
         if (isDuplicate) {
@@ -73,6 +122,10 @@ const createDebitNote = async (req, res) => {
             num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb,
             ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb
         });
+
+        const cod_opg = await getOpgFromRendition(rnd_ndb);
+        if (cod_opg) await orderModel.autoUpdateOpgStatus(cod_opg);
+
         res.status(201).json(newDebitNote);
     } catch (error) {
         console.error('Error al Crear la Nota de Debito', error);
@@ -82,8 +135,48 @@ const createDebitNote = async (req, res) => {
 
 const updateDebitNote = async (req, res) => {
     const { cod_ndb } = req.params;
-    const { num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
+    let { num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
     try {
+        // Validar que la fecha no sea futura
+        if (fec_ndb && new Date(fec_ndb) > new Date()) {
+            return res.status(400).json({ message: 'La fecha de la Nota de Débito no puede ser posterior a la fecha actual.' });
+        }
+
+        // Normalizar mayúsculas
+        con_ndb = (con_ndb || '').toUpperCase();
+        if (num_ndb && !num_ndb.startsWith('ND-')) {
+            num_ndb = 'ND-' + num_ndb;
+        }
+
+        // Auto-calcular mon_ndb cuando hay retenciones (sub_ndb - retenciones)
+        if (Number(sub_ndb) > 0 && (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0)) {
+            mon_ndb = round2(Number(sub_ndb || 0) - Number(rtc_ndb || 0) - Number(tbf_ndb || 0) - Number(isl_ndb || 0));
+        }
+
+        // Validar retenciones contra el subtotal (subtotal >= suma retenciones)
+        const sumRet = Number(rtc_ndb || 0) + Number(tbf_ndb || 0) + Number(isl_ndb || 0);
+        if ((Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) && Number(sub_ndb || 0) < sumRet) {
+            return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede ser menor a la suma de las retenciones (Bs. ${sumRet.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+        }
+
+        // Validar retenciones individuales contra el subtotal
+        if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
+            const sub = Number(sub_ndb || 0);
+            if (Number(rtc_ndb || 0) > sub || Number(tbf_ndb || 0) > sub || Number(isl_ndb || 0) > sub) {
+                return res.status(400).json({ message: `Ninguna retención individual puede superar el subtotal (Bs. ${sub.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+            }
+        }
+
+        // Validar retenciones contra el monto de la OPG (estrictamente menor, no <=)
+        if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
+            const cod_opg = await getOpgFromRendition(rnd_ndb);
+            const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
+            const monOpg = opg ? Number(opg.mon_opg || 0) : 0;
+            if (Number(rtc_ndb || 0) >= monOpg || Number(tbf_ndb || 0) >= monOpg || Number(isl_ndb || 0) >= monOpg) {
+                return res.status(400).json({ message: `Ninguna retención puede superar el monto de la Orden de Pago (Bs. ${monOpg.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+            }
+        }
+
         // Validar número de nota no duplicado (excluyendo la propia)
         const isDuplicate = await debitNoteModel.checkDuplicateNumNdb(num_ndb, cod_ndb);
         if (isDuplicate) {
@@ -117,6 +210,10 @@ const updateDebitNote = async (req, res) => {
             ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb
         });
         if (!updated) return res.status(404).json({ message: 'Nota de Debito no encontrada o sin cambios' });
+
+        const cod_opg = await getOpgFromRendition(rnd_ndb);
+        if (cod_opg) await orderModel.autoUpdateOpgStatus(cod_opg);
+
         res.json({ message: 'Nota de Debito actualizada con éxito', data: updated });
     } catch (error) {
         console.error('Error al Editar la Nota de Debito', error);
@@ -133,8 +230,17 @@ const deleteDebitNote = async (req, res) => {
             return res.status(409).json({ message: 'No se puede eliminar esta Nota de Débito porque tiene Detalles de Gasto asociados. Elimine primero los detalles.' });
         }
 
+        const existingNote = await debitNoteModel.getDebitNoteModel({ cod_ndb });
+        const rnd_ndb = existingNote?.rnd_ndb;
+
         const result = await debitNoteModel.deleteDebitNoteModel({ cod_ndb });
         if (!result) return res.status(404).json({ message: 'Nota de Debito no encontrada' });
+
+        if (rnd_ndb) {
+            const cod_opg = await getOpgFromRendition(rnd_ndb);
+            if (cod_opg) await orderModel.autoUpdateOpgStatus(cod_opg);
+        }
+
         res.json({ message: 'Nota de Debito eliminada con éxito' });
     } catch (error) {
         console.error('Error al Eliminar la Nota de Debito', error);
