@@ -15,7 +15,7 @@ const getRenditionListModel = async () => {
         FROM rnd_ren r
         JOIN opg_ren o ON r.opg_rnd = o.cod_opg
         WHERE r.sta_rnd = 1
-        ORDER BY o.cod_opg ASC, r.cod_rnd ASC
+        ORDER BY o.cod_opg DESC, r.cod_rnd DESC
     `);
     return rows;
 };
@@ -122,17 +122,17 @@ const getOPGExecutionSummaryModel = async (cod_opg) => {
             ), 0) AS total_reintegros,
             
             -- Bruto de gastos
-            COALESCE(SUM(d.mon_drn), 0) AS bruto_ejecutado,
+            COALESCE(SUM(n.mon_ndb), 0) AS bruto_ejecutado,
             
             -- Neto ejecutado = bruto - reintegros
-            (COALESCE(SUM(d.mon_drn), 0) - COALESCE((
+            (COALESCE(SUM(n.mon_ndb), 0) - COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
                 WHERE r2.opg_rnd = o.cod_opg
             ), 0)) AS total_ejecutado,
             
             -- Saldo disponible = inicial - neto ejecutado
-            (o.mon_opg - (COALESCE(SUM(d.mon_drn), 0) - COALESCE((
+            (o.mon_opg - (COALESCE(SUM(n.mon_ndb), 0) - COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
                 WHERE r2.opg_rnd = o.cod_opg
@@ -142,7 +142,6 @@ const getOPGExecutionSummaryModel = async (cod_opg) => {
         FROM opg_ren o
         LEFT JOIN rnd_ren r ON o.cod_opg = r.opg_rnd
         LEFT JOIN ndb_ren n ON r.cod_rnd = n.rnd_ndb
-        LEFT JOIN drn_ren d ON n.cod_ndb = d.cab_drn
         WHERE o.cod_opg = ?
         GROUP BY o.cod_opg
     `, [cod_opg]);
@@ -155,9 +154,8 @@ const getOPGExecutionByRenditionModel = async (cod_rnd) => {
             o.mon_opg AS monto_asignado,
 
             COALESCE((
-                SELECT SUM(d.mon_drn)
+                SELECT SUM(n.mon_ndb)
                 FROM ndb_ren n
-                JOIN drn_ren d ON d.cab_drn = n.cod_ndb
                 WHERE n.rnd_ndb = r.cod_rnd
             ),0) AS monto_rendido_actual,
 
@@ -199,11 +197,10 @@ const getDashboardProgramStatsModel = async () => {
         SELECT 
             p.cod_pro,
             p.nom_pro,
-            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? THEN d.mon_drn ELSE 0 END), 0) as gastado_anual,
-            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? AND MONTH(n.fec_ndb) = ? THEN d.mon_drn ELSE 0 END), 0) as gastado_mensual
+            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? THEN n.mon_ndb ELSE 0 END), 0) as gastado_anual,
+            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? AND MONTH(n.fec_ndb) = ? THEN n.mon_ndb ELSE 0 END), 0) as gastado_mensual
         FROM pro_ren p
         LEFT JOIN ndb_ren n ON p.cod_pro = n.pro_ndb
-        LEFT JOIN drn_ren d ON n.cod_ndb = d.cab_drn
         GROUP BY p.cod_pro, p.nom_pro
     `, [year, year, month]);
     return rows;

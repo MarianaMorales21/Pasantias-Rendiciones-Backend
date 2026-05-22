@@ -53,16 +53,6 @@ const getRenditionsByOpgModel = async (opg_rnd) => {
     return rows;
 };
 
-// Verificar si el periodo ya existe para esa misma OPG
-const checkDuplicatePeriod = async (opg_rnd, prd_rnd, excludeCodRnd = null) => {
-    const query = excludeCodRnd
-        ? 'SELECT COUNT(*) as count FROM rnd_ren WHERE opg_rnd = ? AND prd_rnd = ? AND cod_rnd != ?'
-        : 'SELECT COUNT(*) as count FROM rnd_ren WHERE opg_rnd = ? AND prd_rnd = ?';
-    const params = excludeCodRnd ? [opg_rnd, prd_rnd, excludeCodRnd] : [opg_rnd, prd_rnd];
-    const [rows] = await db.query(query, params);
-    return rows[0].count > 0;
-};
-
 // Verificar si la rendición tiene notas de débito asociadas
 const renditionHasDebitNotes = async (cod_rnd) => {
     const [rows] = await db.query('SELECT COUNT(*) as count FROM ndb_ren WHERE rnd_ndb = ?', [cod_rnd]);
@@ -82,7 +72,7 @@ export const renditionModel = {
     createRenditionModel,
     updateRenditionModel,
     deleteRenditionModel,
-    checkDuplicatePeriod,
+
     renditionHasDebitNotes,
     getOPGStatus,
 };

@@ -1,7 +1,7 @@
 import { db } from "../database/connection.database.js";
 
 const getDeparturesModel = async () => {
-    const [rows] = await db.query('SELECT * FROM par_ren');
+    const [rows] = await db.query("SELECT * FROM par_ren WHERE LOWER(nom_par) LIKE '%orden de pago%'");
     return rows;
 };
 

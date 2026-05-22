@@ -82,10 +82,20 @@ const createDebitNote = async (req, res) => {
             mon_ndb = round2(Number(sub_ndb || 0) - Number(rtc_ndb || 0) - Number(tbf_ndb || 0) - Number(isl_ndb || 0));
         }
 
-        // Validar retenciones contra el subtotal (subtotal >= suma retenciones)
+        // Validar retenciones contra el subtotal (subtotal > suma retenciones)
         const sumRet = Number(rtc_ndb || 0) + Number(tbf_ndb || 0) + Number(isl_ndb || 0);
         if ((Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) && Number(sub_ndb || 0) < sumRet) {
             return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede ser menor a la suma de las retenciones (Bs. ${sumRet.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+        }
+
+        // Validar subtotal contra el monto de la OPG (create)
+        if (Number(sub_ndb) > 0) {
+            const cod_opg = await getOpgFromRendition(rnd_ndb);
+            const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
+            const monOpg = opg ? Number(opg.mon_opg || 0) : 0;
+            if (Number(sub_ndb || 0) > monOpg) {
+                return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede superar el monto de la Orden de Pago (Bs. ${monOpg.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+            }
         }
 
         // Validar retenciones individuales contra el subtotal
@@ -153,13 +163,23 @@ const updateDebitNote = async (req, res) => {
             mon_ndb = round2(Number(sub_ndb || 0) - Number(rtc_ndb || 0) - Number(tbf_ndb || 0) - Number(isl_ndb || 0));
         }
 
-        // Validar retenciones contra el subtotal (subtotal >= suma retenciones)
+        // Validar retenciones contra el subtotal (subtotal > suma retenciones)
         const sumRet = Number(rtc_ndb || 0) + Number(tbf_ndb || 0) + Number(isl_ndb || 0);
         if ((Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) && Number(sub_ndb || 0) < sumRet) {
             return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede ser menor a la suma de las retenciones (Bs. ${sumRet.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
         }
 
-        // Validar retenciones individuales contra el subtotal
+        // Validar subtotal contra el monto de la OPG (update)
+        if (Number(sub_ndb) > 0) {
+            const cod_opg = await getOpgFromRendition(rnd_ndb);
+            const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
+            const monOpg = opg ? Number(opg.mon_opg || 0) : 0;
+            if (Number(sub_ndb || 0) > monOpg) {
+                return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede superar el monto de la Orden de Pago (Bs. ${monOpg.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
+            }
+        }
+
+        // Validar retenciones individuales contra el subtotal (update)
         if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
             const sub = Number(sub_ndb || 0);
             if (Number(rtc_ndb || 0) > sub || Number(tbf_ndb || 0) > sub || Number(isl_ndb || 0) > sub) {
