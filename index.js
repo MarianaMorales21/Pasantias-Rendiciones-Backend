@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import express from "express";
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { port } from "./src/config.js";
 import morgan from "morgan";
 import cookieParser from 'cookie-parser';
@@ -25,26 +27,32 @@ import AuthoritiesRouter from './src/routes/authoritiesRouter.js'
 
 import { verifyToken, authorizeRoles } from './src/middlewares/jwt.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 // Seguridad Global
+const allowedOrigins = process.env.FRONTEND_URL
+    ? [process.env.FRONTEND_URL]
+    : ['http://localhost:3000', 'http://localhost:5173'];
 app.use(helmet());
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:5173'],
+    origin: allowedOrigins,
     credentials: true,
     methods: 'GET, PUT, POST, DELETE, HEAD, PATCH'
 }));
 
 // Limitador de peticiones (Rate Limit)
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 100, // limite de 100 peticiones por ventana
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     message: "Demasiadas peticiones desde esta IP, por favor intente de nuevo más tarde."
 });
 
-app.get('/', (req, res) => {
-    res.send('Servidor de Pasantías funcionando correctamente');
-});
+// En producción, servir archivos estáticos del frontend
+const staticDir = process.env.STATIC_DIR || path.join(__dirname, '..', 'Pasantias-Frontend', 'dist');
+app.use(express.static(staticDir));
 
 app.use(morgan('dev'));
 app.use(express.json());
@@ -69,6 +77,13 @@ app.use('/api', verifyToken, authorizeRoles(), [
     ReportsRouters,
     AuthoritiesRouter
 ]);
+
+// SPA fallback: redirigir cualquier ruta no-API al index.html del frontend
+app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(staticDir, 'index.html'));
+    }
+});
 
 app.listen(port, () => {
     console.log("Server on port", port);

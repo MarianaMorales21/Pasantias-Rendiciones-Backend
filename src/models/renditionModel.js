@@ -65,6 +65,16 @@ const getOPGStatus = async (opg_rnd) => {
     return rows[0];
 };
 
+// Verificar si el número de rendición ya existe en la misma OPG
+const checkDuplicateNumRnd = async (num_rnd, opg_rnd, excludeCodRnd = null) => {
+    const query = excludeCodRnd
+        ? 'SELECT COUNT(*) as count FROM rnd_ren WHERE num_rnd = ? AND opg_rnd = ? AND cod_rnd != ?'
+        : 'SELECT COUNT(*) as count FROM rnd_ren WHERE num_rnd = ? AND opg_rnd = ?';
+    const params = excludeCodRnd ? [num_rnd, opg_rnd, excludeCodRnd] : [num_rnd, opg_rnd];
+    const [rows] = await db.query(query, params);
+    return rows[0].count > 0;
+};
+
 export const renditionModel = {
     getRenditionModel,
     getRenditionsModel,
@@ -75,4 +85,5 @@ export const renditionModel = {
 
     renditionHasDebitNotes,
     getOPGStatus,
+    checkDuplicateNumRnd,
 };

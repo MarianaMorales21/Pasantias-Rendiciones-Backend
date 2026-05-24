@@ -48,6 +48,12 @@ const createRendition = async (req, res) => {
             return res.status(400).json({ message: 'La fecha de la Rendición no puede ser una fecha futura.' });
         }
 
+        // Verificar número de rendición duplicado en la misma OPG
+        const duplicado = await renditionModel.checkDuplicateNumRnd(num_rnd, opg_rnd);
+        if (duplicado) {
+            return res.status(409).json({ message: `El número de Rendición "${num_rnd}" ya existe en esta Orden de Pago.` });
+        }
+
         const newRnd = await renditionModel.createRenditionModel({ 
             num_rnd, opg_rnd, fec_rnd, prd_rnd, avs_rnd, sta_rnd , rnt_rnd
         });
@@ -77,6 +83,12 @@ const updateRendition = async (req, res) => {
         // Verificar que la fecha no sea futura
         if (fec_rnd && new Date(fec_rnd) > new Date()) {
             return res.status(400).json({ message: 'La fecha de la Rendición no puede ser una fecha futura.' });
+        }
+
+        // Verificar número de rendición duplicado en la misma OPG (excluyendo la actual)
+        const duplicado = await renditionModel.checkDuplicateNumRnd(num_rnd, opg_rnd, cod_rnd);
+        if (duplicado) {
+            return res.status(409).json({ message: `El número de Rendición "${num_rnd}" ya existe en esta Orden de Pago.` });
         }
 
         const updated = await renditionModel.updateRenditionModel(cod_rnd, { 

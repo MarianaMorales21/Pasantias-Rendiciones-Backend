@@ -40,15 +40,18 @@ const createUserModel = async ({ ced_usu, nom_usu, ema_usu, cla_usu, sta_usu, ro
 }
 
 const updateUserModel = async (ced_usu, { nom_usu, ema_usu, cla_usu, sta_usu, rol_usu }) => {
+    const safeSta = sta_usu != null ? parseInt(sta_usu) : null;
+    const safeRol = rol_usu != null ? parseInt(rol_usu) : null;
+
     if (cla_usu) {
         await db.query(
             'UPDATE usu_ren SET nom_usu=?, cla_usu=?, ema_usu=?, sta_usu=?, rol_usu=? WHERE TRIM(ced_usu)=?',
-            [nom_usu, cla_usu, ema_usu, parseInt(sta_usu), parseInt(rol_usu), ced_usu]
+            [nom_usu, cla_usu, ema_usu, safeSta, safeRol, ced_usu]
         );
     } else {
         await db.query(
             'UPDATE usu_ren SET nom_usu=?, ema_usu=?, sta_usu=?, rol_usu=? WHERE TRIM(ced_usu)=?',
-            [nom_usu, ema_usu, parseInt(sta_usu), parseInt(rol_usu), ced_usu]
+            [nom_usu, ema_usu, safeSta, safeRol, ced_usu]
         );
     }
     return { ced_usu, nom_usu, ema_usu, sta_usu, rol_usu };

@@ -1,8 +1,9 @@
 import { userModel } from '../models/userModel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { createAccesToken } from '../token.js';
-import { sendRecoveryEmail } from '../libs/nodemailer.js';
+import { sendRecoveryEmail, sendPasswordToEmail } from '../libs/nodemailer.js';
 
 export const login = async (req, res) => {
     const { ced_usu, cla_usu } = req.body;
@@ -127,6 +128,42 @@ export const forgotPassword = async (req, res) => {
     }
 };
 
+export const forgotPasswordByCedula = async (req, res) => {
+    const { ced_usu } = req.body;
+
+    try {
+        const user = await userModel.getUserModel({ ced_usu: String(ced_usu).trim() });
+        if (!user) {
+            return res.status(404).json({ message: "No se encontró un usuario con esa cédula." });
+        }
+
+        if (!user.ema_usu) {
+            return res.status(400).json({ message: "El usuario no tiene un correo electrónico registrado." });
+        }
+
+        // Generar contraseña temporal de 8 caracteres
+        const tempPassword = crypto.randomBytes(4).toString('hex');
+
+        // Hashear y guardar la nueva contraseña
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(tempPassword, salt);
+        await userModel.updatePasswordModel(user.ced_usu, hashedPassword);
+
+        // Enviar la contraseña temporal al correo
+        try {
+            await sendPasswordToEmail(user.ema_usu, tempPassword, user.nom_usu);
+            console.log(`Correo enviado exitosamente a ${user.ema_usu}`);
+        } catch (emailError) {
+            console.error("Error al enviar correo:", emailError);
+        }
+
+        res.json({ message: "Se ha enviado una nueva contraseña a tu correo electrónico." });
+    } catch (error) {
+        console.error("Forgot Password By Cedula Error:", error);
+        res.status(500).json({ message: "Error al enviar la nueva contraseña." });
+    }
+};
+
 export const resetPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
@@ -151,5 +188,39 @@ export const resetPassword = async (req, res) => {
             return res.status(400).json({ message: "El enlace ha expirado. Por favor solicita uno nuevo." });
         }
         res.status(400).json({ message: "Enlace de recuperación inválido o expirado." });
+    }
+};
+
+export const changePassword = async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    if (!oldPassword || !newPassword) {
+        return res.status(400).json({ message: "Ambas contraseñas son obligatorias." });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ message: "La nueva contraseña debe tener al menos 6 caracteres." });
+    }
+
+    try {
+        const user = await userModel.getUserModel({ ced_usu: userId });
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no encontrado." });
+        }
+
+        const isMatch = await bcrypt.compare(oldPassword, user.cla_usu);
+        if (!isMatch) {
+            return res.status(400).json({ message: "La contraseña actual no es correcta." });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        await userModel.updatePasswordModel(userId, hashedPassword);
+
+        res.json({ message: "Contraseña actualizada correctamente." });
+    } catch (error) {
+        console.error("Change Password Error:", error);
+        res.status(500).json({ message: "Error al cambiar la contraseña." });
     }
 };

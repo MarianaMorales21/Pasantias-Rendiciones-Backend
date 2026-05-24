@@ -1,6 +1,7 @@
 import { debitNoteModel } from "../models/debitNoteModel.js";
 import { renditionModel } from "../models/renditionModel.js";
 import { orderModel } from "../models/orderModel.js";
+import { db } from "../database/connection.database.js";
 
 const getOpgFromRendition = async (cod_rnd) => {
     const rendition = await renditionModel.getRenditionModel({ cod_rnd });
@@ -209,12 +210,13 @@ const updateDebitNote = async (req, res) => {
             return res.status(404).json({ message: 'Nota de Débito no encontrada' });
         }
 
-        // Si se intenta reducir el monto y la nota ya tiene detalles de gasto, denegar
+        // Si se intenta reducir el monto, verificar que no quede por debajo de la suma de detalles
         if (Number(mon_ndb) < Number(existingNote.mon_ndb)) {
-            const hasDetails = await debitNoteModel.debitNoteHasDetails(cod_ndb);
-            if (hasDetails) {
-                return res.status(400).json({ 
-                    message: 'No se puede reducir el monto de la Nota de Débito porque ya tiene Detalles de Gasto registrados.' 
+            const [detailsRows] = await db.query('SELECT COALESCE(SUM(mon_drn), 0) as total FROM drn_ren WHERE cab_drn = ?', [cod_ndb]);
+            const totalDetails = Number(detailsRows[0]?.total || 0);
+            if (Number(mon_ndb) < totalDetails) {
+                return res.status(400).json({
+                    message: `No se puede reducir el monto por debajo de la suma de sus detalles (Bs. ${totalDetails.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).`
                 });
             }
         }

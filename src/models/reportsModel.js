@@ -103,7 +103,7 @@ const getFullOPGHistoryModel = async (cod_opg) => {
         JOIN pro_ren pr ON n.pro_ndb = pr.cod_pro
         LEFT JOIN par_ren p ON d.par_drn = p.cod_par
         WHERE o.cod_opg = ?
-        ORDER BY r.num_rnd ASC, pr.cod_pro ASC
+        ORDER BY CAST(r.num_rnd AS UNSIGNED) ASC, pr.cod_pro ASC
     `, [cod_opg]);
     return rows;
 };
@@ -248,12 +248,18 @@ const getOPGRenditionsProgressModel = async (cod_opg, monOpg) => {
             r.cod_rnd,
             r.num_rnd,
             COALESCE(r.rnt_rnd, 0) AS reintegro,
-            COALESCE(SUM(n.mon_ndb), 0) AS monto_rendido
+            COALESCE(SUM(
+                CASE 
+                    WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                    THEN n.mon_ndb 
+                    ELSE 0 
+                END
+            ), 0) AS monto_rendido
         FROM rnd_ren r
         LEFT JOIN ndb_ren n ON r.cod_rnd = n.rnd_ndb
         WHERE r.opg_rnd = ?
         GROUP BY r.cod_rnd, r.num_rnd, r.rnt_rnd
-        ORDER BY r.num_rnd ASC
+        ORDER BY CAST(r.num_rnd AS UNSIGNED) ASC
     `, [cod_opg]);
 
     let netAccum = 0;
