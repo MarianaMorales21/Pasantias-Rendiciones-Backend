@@ -32,21 +32,30 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// Validar variables de entorno críticas al arrancar
+if (!process.env.PALABRASECRETA) {
+    console.error('❌ PALABRASECRETA no está definida en el archivo .env');
+    process.exit(1);
+}
+
+const isProd = process.env.NODE_ENV === 'production';
+
 // Seguridad Global
-const allowedOrigins = process.env.FRONTEND_URL
-    ? [process.env.FRONTEND_URL]
-    : ['http://localhost:3000', 'http://localhost:5173'];
 app.use(helmet());
 app.use(cors({
-    origin: allowedOrigins,
+    origin: true,
     credentials: true,
-    methods: 'GET, PUT, POST, DELETE, HEAD, PATCH'
+    methods: 'GET, PUT, POST, DELETE, HEAD, PATCH',
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Confiar en proxy reverso (Nginx)
+app.set('trust proxy', 1);
 
 // Limitador de peticiones (Rate Limit)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 200,
     message: "Demasiadas peticiones desde esta IP, por favor intente de nuevo más tarde."
 });
 
@@ -54,7 +63,7 @@ const limiter = rateLimit({
 const staticDir = process.env.STATIC_DIR || path.join(__dirname, '..', 'Pasantias-Frontend', 'dist');
 app.use(express.static(staticDir));
 
-app.use(morgan('dev'));
+app.use(morgan(isProd ? 'combined' : 'dev'));
 app.use(express.json());
 app.use(cookieParser());
 

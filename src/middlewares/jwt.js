@@ -5,7 +5,7 @@ export const verifyToken = (req, res, next) => {
 
     if (!token) return res.status(401).json({ message: "No hay token, autorización denegada" });
 
-    jwt.verify(token, process.env.PALABRASECRETA || 'secret123', (err, user) => {
+    jwt.verify(token, process.env.PALABRASECRETA, (err, user) => {
         if (err) return res.status(403).json({ message: "Token inválido" });
         req.user = user;
         next();

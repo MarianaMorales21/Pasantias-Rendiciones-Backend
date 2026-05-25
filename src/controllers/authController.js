@@ -49,8 +49,8 @@ export const login = async (req, res) => {
 
         res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+            sameSite: req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'none' : 'lax',
         });
 
         res.json({
@@ -117,7 +117,7 @@ export const forgotPassword = async (req, res) => {
         }
 
         // Crear token temporal (15 minutos)
-        const token = jwt.sign({ id: user.ced_usu }, process.env.PALABRASECRETA || 'secret123', { expiresIn: '15m' });
+        const token = jwt.sign({ id: user.ced_usu }, process.env.PALABRASECRETA, { expiresIn: '15m' });
 
         await sendRecoveryEmail(user.ema_usu, token);
 
@@ -172,7 +172,7 @@ export const resetPassword = async (req, res) => {
 
     try {
         // Verificar token
-        const decoded = jwt.verify(token, process.env.PALABRASECRETA || 'secret123');
+        const decoded = jwt.verify(token, process.env.PALABRASECRETA);
         const userId = decoded.id;
 
         // Hashear nueva clave
