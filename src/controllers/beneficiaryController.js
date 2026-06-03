@@ -9,11 +9,11 @@ const rifIsInUse = async (rif_ben) => {
 
 // Validar formato de identificación:
 // V = cédula (7-8 dígitos)
-// G = RIF con guion antes del último dígito (ej: G-12345678-1)
+// G o J = RIF con guion antes del último dígito (ej: G-12345678-1, J-12345678-1)
 const isValidRif = (rif) => {
     const trimmed = rif.trim().toUpperCase();
     if (/^V-?\d{7,8}$/.test(trimmed)) return true;
-    if (/^G-?\d+-\d$/.test(trimmed)) return true;
+    if (/^[GJ]-?\d+-\d$/.test(trimmed)) return true;
     return false;
 };
 
@@ -50,7 +50,7 @@ const createBeneficiary = async (req, res) => {
 
         // Validar formato RIF
         if (!isValidRif(rif_ben)) {
-            return res.status(400).json({ message: 'El formato del RIF no es válido. Para tipo V use 7-8 dígitos (V-12345678). Para tipo G use el formato con guion antes del último dígito (G-12345678-1).' });
+            return res.status(400).json({ message: 'El formato del RIF no es válido. Para tipo V use 7-8 dígitos (V-12345678). Para tipo G o J use el formato con guion antes del último dígito (G-12345678-1 o J-12345678-1).' });
         }
 
         // Verificar duplicado de RIF

@@ -211,10 +211,12 @@ const updateDebitNote = async (req, res) => {
         }
 
         // Si se intenta reducir el monto, verificar que no quede por debajo de la suma de detalles
-        if (Number(mon_ndb) < Number(existingNote.mon_ndb)) {
+        const currentAmount = round2(mon_ndb);
+        const existingAmount = round2(existingNote.mon_ndb);
+        if (currentAmount < existingAmount) {
             const [detailsRows] = await db.query('SELECT COALESCE(SUM(mon_drn), 0) as total FROM drn_ren WHERE cab_drn = ?', [cod_ndb]);
-            const totalDetails = Number(detailsRows[0]?.total || 0);
-            if (Number(mon_ndb) < totalDetails) {
+            const totalDetails = round2(detailsRows[0]?.total || 0);
+            if (currentAmount < totalDetails) {
                 return res.status(400).json({
                     message: `No se puede reducir el monto por debajo de la suma de sus detalles (Bs. ${totalDetails.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).`
                 });

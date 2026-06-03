@@ -132,9 +132,12 @@ const updateOrder = async (req, res) => {
         }
 
         // Si se intenta reducir el monto, validar que no sea menor a lo ya rendido (neto gastado)
-        if (Number(mon_opg) < Number(existingOrder.mon_opg)) {
-            const netSpent = await orderModel.getOpgNetSpent(cod_opg);
-            if (Number(mon_opg) < netSpent) {
+        const round2 = (n) => Math.round(Number(n) * 100) / 100;
+        const currentAmount = round2(mon_opg);
+        const existingAmount = round2(existingOrder.mon_opg);
+        if (currentAmount < existingAmount) {
+            const netSpent = round2(await orderModel.getOpgNetSpent(cod_opg));
+            if (currentAmount < netSpent) {
                 return res.status(400).json({ 
                     message: `No se puede reducir el monto de la Orden de Pago por debajo de lo ya rendido (Bs. ${netSpent.toLocaleString("es-VE", { minimumFractionDigits: 2 })}).` 
                 });
