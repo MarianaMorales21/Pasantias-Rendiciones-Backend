@@ -40,7 +40,7 @@ const getDeparture = async (req, res) => {
 const createDeparture = async (req, res) => {
     const { num_par, nom_par } = req.body;
     try {
-        const newDeparture = await departureModel.createDepartureModel({ num_par, nom_par });
+        const newDeparture = await departureModel.createDepartureModel({ num_par, nom_par: nom_par?.toUpperCase() });
         res.status(201).json(newDeparture);
     } catch (error) {
         console.error('Error al Crear Partida', error);
@@ -52,7 +52,7 @@ const updateDeparture = async (req, res) => {
     const { cod_par } = req.params;
     const { num_par, nom_par } = req.body;
     try {
-        const updatedDeparture = await departureModel.updateDepartureModel(cod_par, { num_par, nom_par });
+        const updatedDeparture = await departureModel.updateDepartureModel(cod_par, { num_par, nom_par: nom_par?.toUpperCase() });
         if (!updatedDeparture) {
             return res.status(404).json({ message: 'Partida no Encontrada' });
         }
