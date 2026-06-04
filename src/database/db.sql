@@ -539,3 +539,31 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('ctd_ren', 'ben_ren', 'opg_ren', 'ndb_ren')
   AND (COLUMN_KEY IN ('PRI', 'UNI', 'MUL'))
 ORDER BY TABLE_NAME, ORDINAL_POSITION;
+
+INSERT INTO `par_ren` (`num_par`, `nom_par`) VALUES
+-- 1. Finaliza en 4.02.10.06 (Boton - Útiles y materiales de comedor, cocina y hotelería)
+('13.01.51.4.02.10.06', 'UTENSILIOS PARA COMEDOR, COCINA Y REPOSTERIA (BOTON/OTROS)'),
+
+-- 2. Finaliza en 4.02.10.12 (Materiales de ferretería, fontanería y plomería)
+('13.01.51.4.02.10.12', 'MATERIALES DE FERRETERIA, FONTANERIA Y PLOMERIA'),
+
+-- 3. Finaliza en 4.02.08.03 (Productos e insumos de artes gráficas, grabado y dibujo)
+('13.01.51.4.02.08.03', 'PRODUCTOS E INSUMOS DE ARTES GRAFICAS Y DIBUJO'),
+
+-- 4. Finaliza en 4.02.05.01 (Productos farmacéuticos y medicamentos)
+('13.01.51.4.02.05.01', 'PRODUCTOS FARMACEUTICOS Y MEDICAMENTOS (INSUMOS MEDICOS)'),
+
+-- 5. Finaliza en 4.02.10.01 (Materiales de limpieza, aseo y desinfección)
+('13.01.51.4.02.10.01', 'MATERIALES DE LIMPIEZA, ASEO Y SANITIZACION'),
+
+-- 6. Finaliza en 4.02.10.08 (Insumos para mantenimiento de equipos eléctricos y electrónicos)
+('13.01.51.4.02.10.08', 'MATERIALES Y ACCESORIOS ELECTRICOS Y ELECTRONICOS'),
+
+-- 7. Finaliza en 4.02.06.01 (Madera, corcho y sus productos manufacturados)
+('13.01.51.4.02.06.01', 'MADERA, CORCHO Y MATERIALES SIMILARES PARA CONSTRUCCION'),
+
+-- 8. Finaliza en 4.02.06.05 (Vidrios, cristales y sus manufacturas)
+('13.01.51.4.02.06.05', 'PRODUCTOS DE VIDRIO, CRISTALES Y SUS MANUFACTURAS'),
+
+-- 9. Finaliza en 4.02.01.01 (Alimentos y bebidas para personas)
+('13.01.51.4.02.01.01', 'ALIMENTOS Y BEBIDAS PARA PERSONAS');
