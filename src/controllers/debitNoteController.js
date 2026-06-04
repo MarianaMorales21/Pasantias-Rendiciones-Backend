@@ -65,31 +65,26 @@ const validateDebitNoteAmount = async (rnd_ndb, mon_ndb, excludedCodNdb = null) 
 };
 
 const createDebitNote = async (req, res) => {
-    let { num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
+    let { num_ndb, fec_ndb, ben_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
     try {
-        // Validar que la fecha no sea futura
         if (fec_ndb && new Date(fec_ndb) > new Date()) {
             return res.status(400).json({ message: 'La fecha de la Nota de Débito no puede ser posterior a la fecha actual.' });
         }
 
-        // Normalizar mayúsculas
         con_ndb = (con_ndb || '').toUpperCase();
         if (num_ndb && !num_ndb.startsWith('ND-')) {
             num_ndb = 'ND-' + num_ndb;
         }
 
-        // Auto-calcular mon_ndb cuando hay retenciones (sub_ndb - retenciones)
         if (Number(sub_ndb) > 0 && (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0)) {
             mon_ndb = round2(Number(sub_ndb || 0) - Number(rtc_ndb || 0) - Number(tbf_ndb || 0) - Number(isl_ndb || 0));
         }
 
-        // Validar retenciones contra el subtotal (subtotal > suma retenciones)
         const sumRet = Number(rtc_ndb || 0) + Number(tbf_ndb || 0) + Number(isl_ndb || 0);
         if ((Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) && Number(sub_ndb || 0) < sumRet) {
             return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede ser menor a la suma de las retenciones (Bs. ${sumRet.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
         }
 
-        // Validar subtotal contra el monto de la OPG (create)
         if (Number(sub_ndb) > 0) {
             const cod_opg = await getOpgFromRendition(rnd_ndb);
             const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
@@ -99,7 +94,6 @@ const createDebitNote = async (req, res) => {
             }
         }
 
-        // Validar retenciones individuales contra el subtotal
         if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
             const sub = Number(sub_ndb || 0);
             if (Number(rtc_ndb || 0) > sub || Number(tbf_ndb || 0) > sub || Number(isl_ndb || 0) > sub) {
@@ -107,7 +101,6 @@ const createDebitNote = async (req, res) => {
             }
         }
 
-        // Validar retenciones contra el monto de la OPG (estrictamente menor, no <=)
         if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
             const cod_opg = await getOpgFromRendition(rnd_ndb);
             const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
@@ -117,20 +110,18 @@ const createDebitNote = async (req, res) => {
             }
         }
 
-        // Validar número de nota no duplicado
         const isDuplicate = await debitNoteModel.checkDuplicateNumNdb(num_ndb);
         if (isDuplicate) {
             return res.status(409).json({ message: `Ya existe una Nota de Débito con el número "${num_ndb}". El número de nota debe ser único.` });
         }
 
-        // Validar monto
         const validation = await validateDebitNoteAmount(rnd_ndb, mon_ndb);
         if (!validation.valid) {
             return res.status(400).json({ message: validation.message });
         }
 
         const newDebitNote = await debitNoteModel.createDebitNoteModel({
-            num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb,
+            num_ndb, fec_ndb, ben_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb,
             ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb
         });
 
@@ -146,31 +137,26 @@ const createDebitNote = async (req, res) => {
 
 const updateDebitNote = async (req, res) => {
     const { cod_ndb } = req.params;
-    let { num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
+    let { num_ndb, fec_ndb, ben_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
     try {
-        // Validar que la fecha no sea futura
         if (fec_ndb && new Date(fec_ndb) > new Date()) {
             return res.status(400).json({ message: 'La fecha de la Nota de Débito no puede ser posterior a la fecha actual.' });
         }
 
-        // Normalizar mayúsculas
         con_ndb = (con_ndb || '').toUpperCase();
         if (num_ndb && !num_ndb.startsWith('ND-')) {
             num_ndb = 'ND-' + num_ndb;
         }
 
-        // Auto-calcular mon_ndb cuando hay retenciones (sub_ndb - retenciones)
         if (Number(sub_ndb) > 0 && (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0)) {
             mon_ndb = round2(Number(sub_ndb || 0) - Number(rtc_ndb || 0) - Number(tbf_ndb || 0) - Number(isl_ndb || 0));
         }
 
-        // Validar retenciones contra el subtotal (subtotal > suma retenciones)
         const sumRet = Number(rtc_ndb || 0) + Number(tbf_ndb || 0) + Number(isl_ndb || 0);
         if ((Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) && Number(sub_ndb || 0) < sumRet) {
             return res.status(400).json({ message: `El subtotal (Bs. ${Number(sub_ndb || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}) no puede ser menor a la suma de las retenciones (Bs. ${sumRet.toLocaleString('es-VE', { minimumFractionDigits: 2 })}).` });
         }
 
-        // Validar subtotal contra el monto de la OPG (update)
         if (Number(sub_ndb) > 0) {
             const cod_opg = await getOpgFromRendition(rnd_ndb);
             const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
@@ -180,7 +166,6 @@ const updateDebitNote = async (req, res) => {
             }
         }
 
-        // Validar retenciones individuales contra el subtotal (update)
         if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
             const sub = Number(sub_ndb || 0);
             if (Number(rtc_ndb || 0) > sub || Number(tbf_ndb || 0) > sub || Number(isl_ndb || 0) > sub) {
@@ -188,7 +173,6 @@ const updateDebitNote = async (req, res) => {
             }
         }
 
-        // Validar retenciones contra el monto de la OPG (estrictamente menor, no <=)
         if (Number(rtc_ndb) > 0 || Number(tbf_ndb) > 0 || Number(isl_ndb) > 0) {
             const cod_opg = await getOpgFromRendition(rnd_ndb);
             const opg = cod_opg ? await orderModel.getOrderModel({ cod_opg }) : null;
@@ -198,19 +182,16 @@ const updateDebitNote = async (req, res) => {
             }
         }
 
-        // Validar número de nota no duplicado (excluyendo la propia)
         const isDuplicate = await debitNoteModel.checkDuplicateNumNdb(num_ndb, cod_ndb);
         if (isDuplicate) {
             return res.status(409).json({ message: `Ya existe otra Nota de Débito con el número "${num_ndb}". El número de nota debe ser único.` });
         }
 
-        // Obtener la nota de débito existente para verificar el monto
         const existingNote = await debitNoteModel.getDebitNoteModel({ cod_ndb });
         if (!existingNote) {
             return res.status(404).json({ message: 'Nota de Débito no encontrada' });
         }
 
-        // Si se intenta reducir el monto, verificar que no quede por debajo de la suma de detalles
         const currentAmount = round2(mon_ndb);
         const existingAmount = round2(existingNote.mon_ndb);
         if (currentAmount < existingAmount) {
@@ -223,14 +204,13 @@ const updateDebitNote = async (req, res) => {
             }
         }
 
-        // Validar monto
         const validation = await validateDebitNoteAmount(rnd_ndb, mon_ndb, cod_ndb);
         if (!validation.valid) {
             return res.status(400).json({ message: validation.message });
         }
 
         const updated = await debitNoteModel.updateDebitNoteModel(cod_ndb, {
-            num_ndb, fec_ndb, rif_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb,
+            num_ndb, fec_ndb, ben_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb,
             ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb
         });
         if (!updated) return res.status(404).json({ message: 'Nota de Debito no encontrada o sin cambios' });
@@ -248,7 +228,6 @@ const updateDebitNote = async (req, res) => {
 const deleteDebitNote = async (req, res) => {
     const { cod_ndb } = req.params;
     try {
-        // No eliminar si tiene detalles asociados
         const hasDetails = await debitNoteModel.debitNoteHasDetails(cod_ndb);
         if (hasDetails) {
             return res.status(409).json({ message: 'No se puede eliminar esta Nota de Débito porque tiene Detalles de Gasto asociados. Elimine primero los detalles.' });

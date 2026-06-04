@@ -32,8 +32,13 @@ const getProgram = async (req, res) => {
 };
 
 const createProgram = async (req, res) => {
-    const { nom_pro, sta_pro } = req.body;
+    let { nom_pro, sta_pro } = req.body;
     try {
+        // Non-admin: force status to active
+        if (req.user.rol !== 1) {
+            sta_pro = 1;
+        }
+
         const newProgram = await programsModel.createProgramModel({ nom_pro, sta_pro });
         res.status(201).json(newProgram);
     } catch (error) {
@@ -46,10 +51,23 @@ const updateProgram = async (req, res) => {
     const { cod_pro } = req.params;
     const { nom_pro, sta_pro } = req.body;
     try {
-        const updatedProgram = await programsModel.updateProgramModel(cod_pro, { nom_pro, sta_pro });
-        if (!updatedProgram) {
-            return res.status(404).json({ message: 'Programa no Encontrado o no se realizaron cambios' });
+        // Read current program for comparison
+        const current = await programsModel.getProgamModel({ cod_pro });
+        if (!current) {
+            return res.status(404).json({ message: 'Programa no Encontrado' });
         }
+
+        // Build update data
+        const updateData = { nom_pro, sta_pro };
+
+        // Non-admin: strip protected fields
+        if (req.user.rol !== 1) {
+            if (sta_pro !== undefined && sta_pro !== current.sta_pro) {
+                updateData.sta_pro = current.sta_pro;
+            }
+        }
+
+        const updatedProgram = await programsModel.updateProgramModel(cod_pro, updateData);
         res.json({ message: 'Programa actualizado con éxito', data: updatedProgram });
     } catch (error) {
         console.error('Error al Editar el Programa:', error);

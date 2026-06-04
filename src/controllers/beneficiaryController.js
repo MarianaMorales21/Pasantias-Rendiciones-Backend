@@ -1,15 +1,12 @@
 import { beneficiaryModel } from "../models/beneficiaryModel.js";
 import { db } from "../database/connection.database.js";
 
-// Verificar si un RIF está en uso en notas de débito
-const rifIsInUse = async (rif_ben) => {
-    const [rows] = await db.query('SELECT COUNT(*) as count FROM ndb_ren WHERE rif_ndb = ?', [rif_ben]);
+// Verificar si un beneficiario tiene notas de débito vinculadas (por cod_ben)
+const beneficiaryIsInUse = async (cod_ben) => {
+    const [rows] = await db.query('SELECT COUNT(*) as count FROM ndb_ren WHERE ben_ndb = ?', [cod_ben]);
     return rows[0].count > 0;
 };
 
-// Validar formato de identificación:
-// V = cédula (7-8 dígitos)
-// G o J = RIF con guion antes del último dígito (ej: G-12345678-1, J-12345678-1)
 const isValidRif = (rif) => {
     const trimmed = rif.trim().toUpperCase();
     if (/^V-?\d{7,8}$/.test(trimmed)) return true;
@@ -28,9 +25,9 @@ const getBeneficiarys = async (req, res) => {
 };
 
 const getBeneficiary = async (req, res) => {
-    const { rif_ben } = req.params;
+    const { cod_ben } = req.params;
     try {
-        const beneficiary = await beneficiaryModel.getBeneficiaryModel({ rif_ben });
+        const beneficiary = await beneficiaryModel.getBeneficiaryModel({ cod_ben });
         if (!beneficiary) {
             return res.status(404).json({ message: 'Beneficiario no Encontrado' });
         }
@@ -44,19 +41,21 @@ const getBeneficiary = async (req, res) => {
 const createBeneficiary = async (req, res) => {
     let { rif_ben, nom_ben, dir_ben, sta_ben } = req.body;
     try {
-        // Normalizar mayúsculas (solo RIF y dirección, el nombre se respeta)
         rif_ben = (rif_ben || '').toUpperCase();
         dir_ben = (dir_ben || '').toUpperCase();
 
-        // Validar formato RIF
         if (!isValidRif(rif_ben)) {
             return res.status(400).json({ message: 'El formato del RIF no es válido. Para tipo V use 7-8 dígitos (V-12345678). Para tipo G o J use el formato con guion antes del último dígito (G-12345678-1 o J-12345678-1).' });
         }
 
-        // Verificar duplicado de RIF
         const existing = await beneficiaryModel.getBeneficiaryModel({ rif_ben });
         if (existing) {
             return res.status(409).json({ message: `Ya existe un Beneficiario con el RIF "${rif_ben}".` });
+        }
+
+        // Non-admin: force status to active
+        if (req.user.rol !== 1) {
+            sta_ben = 1;
         }
 
         const newBeneficiary = await beneficiaryModel.createBeneficiaryModel({ rif_ben, nom_ben, dir_ben, sta_ben });
@@ -68,16 +67,42 @@ const createBeneficiary = async (req, res) => {
 };
 
 const updateBeneficiary = async (req, res) => {
-    const { rif_ben } = req.params;
-    let { nom_ben, dir_ben, sta_ben } = req.body;
+    const { cod_ben } = req.params;
+    let { rif_ben: newRif, nom_ben, dir_ben, sta_ben } = req.body;
     try {
-        // Normalizar mayúsculas (solo dirección, el nombre se respeta)
+        newRif = (newRif || '').toUpperCase();
         dir_ben = (dir_ben || '').toUpperCase();
 
-        const updatedBeneficiary = await beneficiaryModel.updateBeneficiaryModel(rif_ben, { nom_ben, dir_ben, sta_ben });
-        if (!updatedBeneficiary) {
-            return res.status(404).json({ message: 'Beneficiario no Encontrado o no se realizaron cambios' });
+        const current = await beneficiaryModel.getBeneficiaryModel({ cod_ben });
+        if (!current) {
+            return res.status(404).json({ message: 'Beneficiario no Encontrado' });
         }
+
+        if (newRif !== current.rif_ben && !isValidRif(newRif)) {
+            return res.status(400).json({ message: 'El formato del RIF no es válido.' });
+        }
+
+        if (newRif !== current.rif_ben) {
+            const existing = await beneficiaryModel.getBeneficiaryModel({ rif_ben: newRif });
+            if (existing) {
+                return res.status(409).json({ message: `Ya existe un beneficiario con el RIF "${newRif}".` });
+            }
+        }
+
+        // Build update data
+        const updateData = { rif_ben: newRif, nom_ben, dir_ben, sta_ben };
+
+        // Non-admin restrictions: strip protected fields
+        if (req.user.rol !== 1) {
+            if (newRif && newRif !== current.rif_ben) {
+                updateData.rif_ben = current.rif_ben;
+            }
+            if (sta_ben !== undefined && sta_ben !== current.sta_ben) {
+                updateData.sta_ben = current.sta_ben;
+            }
+        }
+
+        const updatedBeneficiary = await beneficiaryModel.updateBeneficiaryModel(cod_ben, updateData);
         res.json({ message: 'Beneficiario actualizado con exito', data: updatedBeneficiary });
     } catch (error) {
         console.error('Error al Editar el Beneficiario', error);
@@ -86,15 +111,20 @@ const updateBeneficiary = async (req, res) => {
 };
 
 const deleteBeneficiary = async (req, res) => {
-    const { rif_ben } = req.params;
+    const { cod_ben } = req.params;
     try {
-        // No eliminar si está en uso en notas de débito
-        const inUse = await rifIsInUse(rif_ben);
+        const current = await beneficiaryModel.getBeneficiaryModel({ cod_ben });
+        if (!current) {
+            return res.status(404).json({ message: 'Beneficiario no Encontrado' });
+        }
+
+        // Verificar uso por cod_ben
+        const inUse = await beneficiaryIsInUse(cod_ben);
         if (inUse) {
             return res.status(409).json({ message: 'No se puede eliminar este Beneficiario porque está asociado a Notas de Débito existentes.' });
         }
 
-        const isDelete = await beneficiaryModel.deleteBeneficiaryModel({ rif_ben });
+        const isDelete = await beneficiaryModel.deleteBeneficiaryModel({ cod_ben });
         if (!isDelete) {
             return res.status(404).json({ message: 'Beneficiario no Encontrado' });
         }

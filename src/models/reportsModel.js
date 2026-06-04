@@ -1,6 +1,6 @@
 import { db } from "../database/connection.database.js";
 
-// 1. Lista de rendiciones con saldo actual (Saber cuánto queda de la OPG)
+// 1. Lista de rendiciones con saldo actual
 const getRenditionListModel = async () => {
     const [rows] = await db.query(`
         SELECT 
@@ -20,20 +20,19 @@ const getRenditionListModel = async () => {
     return rows;
 };
 
-// 2. Encabezado de Reporte (Ajustado con JOIN a par_ren)
+// 2. Encabezado de Reporte
 const getReportHeaderModel = async (cod_rnd) => {
     const [rows] = await db.query(`
         SELECT 
             r.cod_rnd, r.num_rnd, r.fec_rnd, r.prd_rnd, r.avs_rnd, r.rnt_rnd,
             o.cod_opg, o.num_opg, o.fec_opg, o.mon_opg, o.con_opg, o.fco_opg, o.dcr_opg,
-            o.fdc_opg, -- Traemos la fecha de decreto si existe
-            p.num_par, -- <--- ESTO ES LO QUE TE FALTA PARA LA ASIGNACIÓN
-            p.nom_par,
+            o.fdc_opg,
+            p.num_par, p.nom_par,
             c.nom_ctd, c.ape_ctd, c.ced_ctd, c.dir_ctd
         FROM rnd_ren r
         JOIN opg_ren o ON r.opg_rnd = o.cod_opg
-        JOIN ctd_ren c ON o.ced_opg = c.ced_ctd
-        LEFT JOIN par_ren p ON o.par_opg = p.cod_par -- <--- JOIN PARA LA PARTIDA DE LA OPG
+        JOIN ctd_ren c ON o.ctd_opg = c.cod_ctd
+        LEFT JOIN par_ren p ON o.par_opg = p.cod_par
         WHERE r.cod_rnd = ?
         LIMIT 1
     `, [cod_rnd]);
@@ -58,34 +57,20 @@ const getRenditionDetailsModel = async (cod_rnd) => {
             pr.nom_pro AS programa,
             GROUP_CONCAT(DISTINCT p.num_par ORDER BY p.num_par SEPARATOR ' / ') AS partida
         FROM ndb_ren n
-        JOIN ben_ren b ON n.rif_ndb = b.rif_ben
+        JOIN ben_ren b ON n.ben_ndb = b.cod_ben
         JOIN pro_ren pr ON n.pro_ndb = pr.cod_pro
-
-        -- 🔥 CLAVE: asegurar aislamiento antes de expandir
         JOIN drn_ren d ON d.cab_drn = n.cod_ndb
-
         LEFT JOIN par_ren p ON p.cod_par = d.par_drn
-
         WHERE n.rnd_ndb = ?
         GROUP BY 
-            n.cod_ndb,
-            n.num_ndb,
-            n.fec_ndb,
-            n.ban_ndb,
-            n.ref_ndb,
-            n.con_ndb,
-            b.nom_ben,
-            b.rif_ben,
-            b.dir_ben,
-            n.mon_ndb,
-            pr.cod_pro,
-            pr.nom_pro
-        ORDER BY pr.cod_pro ASC, n.fec_ndb ASC;
+            n.cod_ndb, n.num_ndb, n.fec_ndb, n.ban_ndb, n.ref_ndb, n.con_ndb,
+            b.nom_ben, b.rif_ben, b.dir_ben, n.mon_ndb, pr.cod_pro, pr.nom_pro
+        ORDER BY pr.cod_pro ASC, n.fec_ndb ASC
     `, [cod_rnd]);
     return rows;
 };
 
-// 4. Reporte Completo por Orden de Pago (Muestra TODAS las rendiciones de esa OPG)
+// 4. Reporte Completo por Orden de Pago
 const getFullOPGHistoryModel = async (cod_opg) => {
     const [rows] = await db.query(`
         SELECT 
@@ -113,31 +98,31 @@ const getOPGExecutionSummaryModel = async (cod_opg) => {
     const [rows] = await db.query(`
         SELECT 
             o.mon_opg AS monto_inicial,
-            
-            -- Total de reintegros de la OPG
             COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
                 WHERE r2.opg_rnd = o.cod_opg
             ), 0) AS total_reintegros,
-            
-            -- Bruto de gastos
-            COALESCE(SUM(n.mon_ndb), 0) AS bruto_ejecutado,
-            
-            -- Neto ejecutado = bruto - reintegros
-            (COALESCE(SUM(n.mon_ndb), 0) - COALESCE((
+            COALESCE(SUM(
+                CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                    THEN n.mon_ndb ELSE 0 END
+            ), 0) AS bruto_ejecutado,
+            (COALESCE(SUM(
+                CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                    THEN n.mon_ndb ELSE 0 END
+            ), 0) - COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
                 WHERE r2.opg_rnd = o.cod_opg
             ), 0)) AS total_ejecutado,
-            
-            -- Saldo disponible = inicial - neto ejecutado
-            (o.mon_opg - (COALESCE(SUM(n.mon_ndb), 0) - COALESCE((
+            (o.mon_opg - (COALESCE(SUM(
+                CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                    THEN n.mon_ndb ELSE 0 END
+            ), 0) - COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
                 WHERE r2.opg_rnd = o.cod_opg
             ), 0))) AS saldo_disponible,
-            
             (SELECT COUNT(r.cod_rnd) FROM rnd_ren r WHERE r.opg_rnd = o.cod_opg) AS total_rendiciones
         FROM opg_ren o
         LEFT JOIN rnd_ren r ON o.cod_opg = r.opg_rnd
@@ -152,13 +137,11 @@ const getOPGExecutionByRenditionModel = async (cod_rnd) => {
     const [rows] = await db.query(`
         SELECT 
             o.mon_opg AS monto_asignado,
-
             COALESCE((
                 SELECT SUM(n.mon_ndb)
                 FROM ndb_ren n
                 WHERE n.rnd_ndb = r.cod_rnd
             ),0) AS monto_rendido_actual,
-
             COALESCE((
                 SELECT SUM(n.mon_ndb)
                 FROM ndb_ren n
@@ -166,7 +149,6 @@ const getOPGExecutionByRenditionModel = async (cod_rnd) => {
                 WHERE r2.opg_rnd = o.cod_opg
                   AND r2.num_rnd < r.num_rnd
             ),0) AS monto_rendido_anterior
-
         FROM rnd_ren r
         JOIN opg_ren o ON r.opg_rnd = o.cod_opg
         WHERE r.cod_rnd = ?
@@ -183,22 +165,27 @@ const getActaDataModel = async (cod_rnd) => {
             c.nom_ctd, c.ape_ctd, c.ced_ctd
         FROM rnd_ren r
         JOIN opg_ren o ON r.opg_rnd = o.cod_opg
-        JOIN ctd_ren c ON o.ced_opg = c.ced_ctd
+        JOIN ctd_ren c ON o.ctd_opg = c.cod_ctd
         WHERE r.cod_rnd = ?
     `, [cod_rnd]);
     return rows[0];
 };
 
 const getDashboardProgramStatsModel = async () => {
-    // Current year and month
     const year = new Date().getFullYear();
     const month = new Date().getMonth() + 1;
     const [rows] = await db.query(`
         SELECT 
             p.cod_pro,
             p.nom_pro,
-            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? THEN n.mon_ndb ELSE 0 END), 0) as gastado_anual,
-            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? AND MONTH(n.fec_ndb) = ? THEN n.mon_ndb ELSE 0 END), 0) as gastado_mensual
+            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? 
+                THEN CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                    THEN n.mon_ndb ELSE 0 END
+                ELSE 0 END), 0) as gastado_anual,
+            COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? AND MONTH(n.fec_ndb) = ? 
+                THEN CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                    THEN n.mon_ndb ELSE 0 END
+                ELSE 0 END), 0) as gastado_mensual
         FROM pro_ren p
         LEFT JOIN ndb_ren n ON p.cod_pro = n.pro_ndb
         GROUP BY p.cod_pro, p.nom_pro
@@ -207,22 +194,17 @@ const getDashboardProgramStatsModel = async () => {
 };
 
 const getDetailedReportCalculationsModel = async (cod_rnd, cod_opg) => {
-    // 1. Obtener todas las rendiciones de esta OPG
     const [allRnds] = await db.query(`
         SELECT cod_rnd, rnt_rnd
         FROM rnd_ren
         WHERE opg_rnd = ?
     `, [cod_opg]);
 
-    // Ordenar por ID para orden cronológico
     const sortedRnds = [...allRnds].sort((a, b) => a.cod_rnd - b.cod_rnd);
     const currentIndex = sortedRnds.findIndex(r => r.cod_rnd === Number(cod_rnd));
     const sliceIndex = currentIndex !== -1 ? currentIndex : sortedRnds.length;
-
-    // Rendiciones anteriores
     const previousRndIds = sortedRnds.slice(0, sliceIndex).map(r => r.cod_rnd);
 
-    // 2. Obtener gastos de rendiciones anteriores (usando mon_ndb, no sub_ndb)
     let previousSpent = 0;
     if (previousRndIds.length > 0) {
         const [spentRow] = await db.query(`
@@ -233,13 +215,9 @@ const getDetailedReportCalculationsModel = async (cod_rnd, cod_opg) => {
         previousSpent = parseFloat(spentRow[0].total);
     }
 
-    // 3. Obtener reintegro acumulado anterior
     const previousReintegros = sortedRnds.slice(0, sliceIndex).reduce((acc, r) => acc + parseFloat(r.rnt_rnd || 0), 0);
 
-    return {
-        previousSpent,
-        previousReintegros
-    };
+    return { previousSpent, previousReintegros };
 };
 
 const getOPGRenditionsProgressModel = async (cod_opg, monOpg) => {

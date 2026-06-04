@@ -15,6 +15,38 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+-- 1. DROP FK constraints que referencian la PK actual
+ALTER TABLE opg_ren DROP FOREIGN KEY fk_opg_ctd;
+ALTER TABLE ndb_ren DROP FOREIGN KEY fk_ndb_ben;
+
+-- 2. ctd_ren: agregar cod_ctd como nueva PK auto-increment
+ALTER TABLE ctd_ren
+  ADD cod_ctd INT UNSIGNED NOT NULL AUTO_INCREMENT FIRST,
+  ADD UNIQUE INDEX uq_ctd_ren_ced_ctd (ced_ctd),
+  DROP PRIMARY KEY,
+  ADD PRIMARY KEY (cod_ctd);
+
+-- 3. ben_ren: agregar cod_ben como nueva PK auto-increment
+ALTER TABLE ben_ren
+  ADD cod_ben INT UNSIGNED NOT NULL AUTO_INCREMENT FIRST,
+  ADD UNIQUE INDEX uq_ben_ren_rif_ben (rif_ben),
+  DROP PRIMARY KEY,
+  ADD PRIMARY KEY (cod_ben);
+
+-- 4. Re-crear FK constraints apuntando a las columnas UNIQUE
+ALTER TABLE opg_ren ADD CONSTRAINT fk_opg_ctd
+  FOREIGN KEY (ced_opg) REFERENCES ctd_ren(ced_ctd);
+
+ALTER TABLE ndb_ren ADD CONSTRAINT fk_ndb_ben
+  FOREIGN KEY (rif_ndb) REFERENCES ben_ren(rif_ben);
+
+-- 5. Verificar que todo esté bien
+SELECT TABLE_NAME, COLUMN_NAME, COLUMN_KEY, EXTRA
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('ctd_ren', 'ben_ren')
+  AND (COLUMN_KEY = 'PRI' OR COLUMN_NAME IN ('ced_ctd', 'rif_ben'));
+
 --
 -- Table structure for table `aut_ren`
 --
@@ -415,3 +447,95 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-05-24 19:01:16
+
+
+
+-- =============================================
+-- MIGRACIÓN FINAL: Todo por cod_ctd / cod_ben
+-- =============================================
+
+-- 1. Desactivar temporalmente la verificación de llaves foráneas y modo seguro
+SET FOREIGN_KEY_CHECKS = 0;
+SET SQL_SAFE_UPDATES = 0;
+
+
+-- 2. Modificaciones en Tablas Maestras (Añadir los IDs autoincrementales)
+-- -------------------------------------------------------------------------
+-- Añadimos cod_ctd a ctd_ren, mantenemos ced_ctd como UNIQUE y cambiamos la PK
+ALTER TABLE ctd_ren 
+  ADD COLUMN cod_ctd INT UNSIGNED NOT NULL AUTO_INCREMENT FIRST,
+  ADD UNIQUE INDEX uq_ctd_ren_ced_ctd (ced_ctd),
+  DROP PRIMARY KEY,
+  ADD PRIMARY KEY (cod_ctd);
+
+-- Añadimos cod_ben a ben_ren, mantenemos rif_ben como UNIQUE y cambiamos la PK
+ALTER TABLE ben_ren 
+  ADD COLUMN cod_ben INT UNSIGNED NOT NULL AUTO_INCREMENT FIRST,
+  ADD UNIQUE INDEX uq_ben_ren_rif_ben (rif_ben),
+  DROP PRIMARY KEY,
+  ADD PRIMARY KEY (cod_ben);
+
+
+-- 3. Modificaciones en Tablas Operativas (Preparar nuevas columnas)
+-- -------------------------------------------------------------------------
+-- Añadir ctd_opg en opg_ren justo después de ced_opg
+ALTER TABLE opg_ren ADD COLUMN ctd_opg INT UNSIGNED AFTER ced_opg;
+
+-- Añadir ben_ndb en ndb_ren justo después de rif_ndb
+ALTER TABLE ndb_ren ADD COLUMN ben_ndb INT UNSIGNED AFTER rif_ndb;
+
+
+-- 4. Migración Dinámica de Datos Existentes
+-- -------------------------------------------------------------------------
+-- Mapeamos las cédulas viejas con los nuevos IDs autoincrementales generados
+UPDATE opg_ren o 
+JOIN ctd_ren c ON o.ced_opg = c.ced_ctd 
+SET o.ctd_opg = c.cod_ctd;
+
+-- Mapeamos los RIFs viejos con los nuevos IDs autoincrementales generados
+UPDATE ndb_ren n 
+JOIN ben_ren b ON n.rif_ndb = b.rif_ben 
+SET n.ben_ndb = b.cod_ben;
+
+
+-- 5. Ajustar Restricciones y Limpieza de Columnas Obsoletas
+-- -------------------------------------------------------------------------
+-- Forzar a que las nuevas columnas no admitan nulos (Integridad de datos)
+ALTER TABLE opg_ren MODIFY COLUMN ctd_opg INT UNSIGNED NOT NULL;
+ALTER TABLE ndb_ren MODIFY COLUMN ben_ndb INT UNSIGNED NOT NULL;
+
+-- Eliminar las viejas FK de texto que ya no sirven
+ALTER TABLE opg_ren DROP FOREIGN KEY fk_opg_ctd;
+ALTER TABLE ndb_ren DROP FOREIGN KEY fk_ndb_ben;
+
+-- Eliminar los índices de texto viejos asociados a esas FK
+ALTER TABLE opg_ren DROP INDEX fk_opg_ctd;
+ALTER TABLE ndb_ren DROP INDEX fk_ndb_ben;
+
+-- Borrar las columnas viejas de texto de las tablas operativas
+ALTER TABLE opg_ren DROP COLUMN ced_opg;
+ALTER TABLE ndb_ren DROP COLUMN rif_ndb;
+
+
+-- 6. Establecer las Nuevas Relaciones de Claves Foráneas (FK Enteras)
+-- -------------------------------------------------------------------------
+ALTER TABLE opg_ren 
+  ADD CONSTRAINT fk_opg_ctd FOREIGN KEY (ctd_opg) REFERENCES ctd_ren (cod_ctd);
+
+ALTER TABLE ndb_ren 
+  ADD CONSTRAINT fk_ndb_ben FOREIGN KEY (ben_ndb) REFERENCES ben_ren (cod_ben);
+
+
+-- 7. Reactivar verificaciones de seguridad
+SET FOREIGN_KEY_CHECKS = 1;
+SET SQL_SAFE_UPDATES = 1;
+
+-- =========================================================================
+-- VERIFICACIÓN FINAL
+-- =========================================================================
+SELECT TABLE_NAME, COLUMN_NAME, COLUMN_KEY, EXTRA
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('ctd_ren', 'ben_ren', 'opg_ren', 'ndb_ren')
+  AND (COLUMN_KEY IN ('PRI', 'UNI', 'MUL'))
+ORDER BY TABLE_NAME, ORDINAL_POSITION;

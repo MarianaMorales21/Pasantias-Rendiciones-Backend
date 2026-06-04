@@ -25,9 +25,8 @@ const getOrder = async (req, res) => {
 };
 
 const createOrder = async (req, res) => {
-    let { num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
+    let { num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
     try {
-        // Validar monto mayor a 0
         if (!mon_opg || Number(mon_opg) <= 0) {
             return res.status(400).json({ message: 'El monto de la Orden de Pago debe ser mayor a cero.' });
         }
@@ -35,22 +34,18 @@ const createOrder = async (req, res) => {
         const today = new Date();
         today.setHours(23, 59, 59, 999);
 
-        // Validar que la fecha de emisión no sea futura
         if (fec_opg && new Date(fec_opg) > today) {
             return res.status(400).json({ message: 'La fecha de emisión no puede ser posterior a la fecha actual.' });
         }
 
-        // Validar que la fecha de decreto no sea futura
         if (fdc_opg && new Date(fdc_opg) > today) {
             return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha actual.' });
         }
 
-        // Validar que la fecha de decreto no sea posterior a la fecha de la orden
         if (fdc_opg && fec_opg && new Date(fdc_opg) > new Date(fec_opg)) {
             return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha de la Orden de Pago.' });
         }
 
-        // Validar fecha de cobro
         if (fco_opg) {
             if (new Date(fco_opg) > today) {
                 return res.status(400).json({ message: 'La fecha de cobro no puede ser posterior a la fecha actual.' });
@@ -60,17 +55,15 @@ const createOrder = async (req, res) => {
             }
         }
 
-        // Normalizar mayúsculas
         con_opg = (con_opg || '').toUpperCase();
 
-        // Validar número de orden no duplicado
         const isDuplicate = await orderModel.checkDuplicateNumOpg(num_opg);
         if (isDuplicate) {
             return res.status(409).json({ message: `Ya existe una Orden de Pago con el número "${num_opg}". El número de orden debe ser único.` });
         }
 
         const newOrder = await orderModel.createOrderModel({ 
-            num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg
+            num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg
         });
         res.status(201).json(newOrder);
     } catch (error) {
@@ -81,9 +74,8 @@ const createOrder = async (req, res) => {
 
 const updateOrder = async (req, res) => {
     const { cod_opg } = req.params;
-    let { num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
+    let { num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
     try {
-        // Validar monto mayor a 0
         if (!mon_opg || Number(mon_opg) <= 0) {
             return res.status(400).json({ message: 'El monto de la Orden de Pago debe ser mayor a cero.' });
         }
@@ -91,22 +83,18 @@ const updateOrder = async (req, res) => {
         const today = new Date();
         today.setHours(23, 59, 59, 999);
 
-        // Validar que la fecha de emisión no sea futura
         if (fec_opg && new Date(fec_opg) > today) {
             return res.status(400).json({ message: 'La fecha de emisión no puede ser posterior a la fecha actual.' });
         }
 
-        // Validar que la fecha de decreto no sea futura
         if (fdc_opg && new Date(fdc_opg) > today) {
             return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha actual.' });
         }
 
-        // Validar que la fecha de decreto no sea posterior a la fecha de la orden
         if (fdc_opg && fec_opg && new Date(fdc_opg) > new Date(fec_opg)) {
             return res.status(400).json({ message: 'La fecha del decreto no puede ser posterior a la fecha de la Orden de Pago.' });
         }
 
-        // Validar fecha de cobro
         if (fco_opg) {
             if (new Date(fco_opg) > today) {
                 return res.status(400).json({ message: 'La fecha de cobro no puede ser posterior a la fecha actual.' });
@@ -116,22 +104,18 @@ const updateOrder = async (req, res) => {
             }
         }
 
-        // Normalizar mayúsculas
         con_opg = (con_opg || '').toUpperCase();
 
-        // Validar número de orden no duplicado (excluir la propia orden)
         const isDuplicate = await orderModel.checkDuplicateNumOpg(num_opg, cod_opg);
         if (isDuplicate) {
             return res.status(409).json({ message: `Ya existe otra Orden de Pago con el número "${num_opg}". El número de orden debe ser único.` });
         }
 
-        // Obtener la orden existente para verificar el monto
         const existingOrder = await orderModel.getOrderModel({ cod_opg });
         if (!existingOrder) {
             return res.status(404).json({ message: 'Orden no Encontrada' });
         }
 
-        // Si se intenta reducir el monto, validar que no sea menor a lo ya rendido (neto gastado)
         const round2 = (n) => Math.round(Number(n) * 100) / 100;
         const currentAmount = round2(mon_opg);
         const existingAmount = round2(existingOrder.mon_opg);
@@ -145,7 +129,7 @@ const updateOrder = async (req, res) => {
         }
 
         const updatedOrderData = await orderModel.updateOrderModel(cod_opg, { 
-            num_opg, ced_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg
+            num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg
         });
         
         if (!updatedOrderData) {
@@ -161,7 +145,6 @@ const updateOrder = async (req, res) => {
 const deleteOrder = async (req, res) => {
     const { cod_opg } = req.params;
     try {
-        // No eliminar si tiene rendiciones asociadas
         const hasRnd = await orderModel.opgHasRenditions(cod_opg);
         if (hasRnd) {
             return res.status(409).json({ message: 'No se puede eliminar esta Orden de Pago porque tiene Rendiciones asociadas. Elimine primero las rendiciones.' });
