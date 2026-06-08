@@ -40,6 +40,10 @@ const getDeparture = async (req, res) => {
 const createDeparture = async (req, res) => {
     const { num_par, nom_par } = req.body;
     try {
+        const existing = await departureModel.getDepartureModel({ num_par });
+        if (existing) {
+            return res.status(409).json({ message: `Ya existe una partida con el número "${num_par}".` });
+        }
         const newDeparture = await departureModel.createDepartureModel({ num_par, nom_par: nom_par?.toUpperCase() });
         res.status(201).json(newDeparture);
     } catch (error) {
@@ -52,10 +56,17 @@ const updateDeparture = async (req, res) => {
     const { cod_par } = req.params;
     const { num_par, nom_par } = req.body;
     try {
-        const updatedDeparture = await departureModel.updateDepartureModel(cod_par, { num_par, nom_par: nom_par?.toUpperCase() });
-        if (!updatedDeparture) {
+        const current = await departureModel.getDepartureModel({ cod_par });
+        if (!current) {
             return res.status(404).json({ message: 'Partida no Encontrada' });
         }
+        if (num_par && num_par !== current.num_par) {
+            const existing = await departureModel.getDepartureModel({ num_par });
+            if (existing) {
+                return res.status(409).json({ message: `Ya existe una partida con el número "${num_par}".` });
+            }
+        }
+        const updatedDeparture = await departureModel.updateDepartureModel(cod_par, { num_par, nom_par: nom_par?.toUpperCase() });
         res.status(200).json({ message: 'Partida actualizada con exito', data: updatedDeparture });
     } catch (error) {
         console.error('Error al Editar Partida', error);

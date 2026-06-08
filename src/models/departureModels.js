@@ -5,7 +5,11 @@ const getDeparturesModel = async () => {
     return rows;
 };
 
-const getDepartureModel = async ({ cod_par }) => {
+const getDepartureModel = async ({ cod_par, num_par }) => {
+    if (num_par) {
+        const [rows] = await db.query('SELECT * FROM par_ren WHERE num_par=?', [num_par]);
+        return rows[0];
+    }
     const [rows] = await db.query('SELECT * FROM par_ren WHERE cod_par=?', [cod_par]);
     return rows[0];
 };
