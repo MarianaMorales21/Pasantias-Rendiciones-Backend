@@ -137,8 +137,9 @@ export const getDetailedReport = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ ok: false, message: 'Error al generar datos del reporte detallado' });
+        console.error('❌ getDetailedReport ERROR:', error?.message || error);
+        console.error('❌ SQL STATE:', error?.sqlState, '| SQL MSG:', error?.sqlMessage);
+        res.status(500).json({ ok: false, message: 'Error al generar datos del reporte detallado', debug: error?.message });
     }
 };
 
@@ -243,5 +244,21 @@ export const getDashboardStats = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ ok: false, message: 'Error al obtener estadísticas del dashboard' });
+    }
+};
+
+export const getDepartureStats = async (req, res) => {
+    try {
+        const { cod_opg } = req.query;
+        let stats;
+        if (cod_opg) {
+            stats = await reportsModel.getDepartureStatsByOpgModel(cod_opg);
+        } else {
+            stats = await reportsModel.getDepartureStatsAnnualModel();
+        }
+        res.json({ ok: true, data: stats });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ ok: false, message: 'Error al obtener estadísticas de partidas' });
     }
 };

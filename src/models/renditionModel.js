@@ -75,6 +75,31 @@ const checkDuplicateNumRnd = async (num_rnd, opg_rnd, excludeCodRnd = null) => {
     return rows[0].count > 0;
 };
 
+const getRenditionByDebitNoteModel = async (cod_ndb) => {
+    const [rows] = await db.query(`
+        SELECT r.*, s.nom_sta
+        FROM ndb_ren n
+        JOIN rnd_ren r ON n.rnd_ndb = r.cod_rnd
+        JOIN sta_ren s ON r.sta_rnd = s.cod_sta
+        WHERE n.cod_ndb = ?
+        LIMIT 1
+    `, [cod_ndb]);
+    return rows[0];
+};
+
+const getRenditionByDetailModel = async (cod_drn) => {
+    const [rows] = await db.query(`
+        SELECT r.*, s.nom_sta
+        FROM drn_ren d
+        JOIN ndb_ren n ON d.cab_drn = n.cod_ndb
+        JOIN rnd_ren r ON n.rnd_ndb = r.cod_rnd
+        JOIN sta_ren s ON r.sta_rnd = s.cod_sta
+        WHERE d.cod_drn = ?
+        LIMIT 1
+    `, [cod_drn]);
+    return rows[0];
+};
+
 export const renditionModel = {
     getRenditionModel,
     getRenditionsModel,
@@ -86,4 +111,6 @@ export const renditionModel = {
     renditionHasDebitNotes,
     getOPGStatus,
     checkDuplicateNumRnd,
+    getRenditionByDebitNoteModel,
+    getRenditionByDetailModel,
 };

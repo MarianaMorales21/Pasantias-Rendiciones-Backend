@@ -1,4 +1,9 @@
 import { debitNoteDetailsModel } from "../models/debitNoteDetailsModel.js";
+import { renditionModel } from "../models/renditionModel.js";
+
+const getRenditionByDebitNote = async (cod_ndb) => {
+    return renditionModel.getRenditionByDebitNoteModel(cod_ndb);
+};
 
 const getDetailsByDebitNote = async (req, res) => {
     const { cab_drn } = req.params;
@@ -16,6 +21,11 @@ const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const createDebitNoteDetail = async (req, res) => {
     let { cab_drn, par_drn, des_drn, mon_drn } = req.body;
     try {
+        const rendition = await getRenditionByDebitNote(cab_drn);
+        if (rendition?.nom_sta === 'Entregada') {
+            return res.status(409).json({ message: 'No se pueden crear Detalles de Gasto en una Rendición entregada.' });
+        }
+
         des_drn = (des_drn || '').toUpperCase();
 
         const amount = round2(mon_drn);
@@ -51,6 +61,16 @@ const updateDebitNoteDetail = async (req, res) => {
     const { cod_drn } = req.params;
     let { cab_drn, par_drn, des_drn, mon_drn } = req.body;
     try {
+        const currentRendition = await renditionModel.getRenditionByDetailModel(cod_drn);
+        if (currentRendition?.nom_sta === 'Entregada') {
+            return res.status(409).json({ message: 'No se puede editar un Detalle de Gasto de una Rendición entregada.' });
+        }
+
+        const targetRendition = await getRenditionByDebitNote(cab_drn);
+        if (targetRendition?.nom_sta === 'Entregada') {
+            return res.status(409).json({ message: 'No se puede mover un Detalle de Gasto a una Rendición entregada.' });
+        }
+
         des_drn = (des_drn || '').toUpperCase();
 
         const amount = round2(mon_drn);
@@ -85,6 +105,11 @@ const updateDebitNoteDetail = async (req, res) => {
 const deleteDebitNoteDetail = async (req, res) => {
     const { cod_drn } = req.params;
     try {
+        const currentRendition = await renditionModel.getRenditionByDetailModel(cod_drn);
+        if (currentRendition?.nom_sta === 'Entregada') {
+            return res.status(409).json({ message: 'No se puede eliminar un Detalle de Gasto de una Rendición entregada.' });
+        }
+
         await debitNoteDetailsModel.deleteDebitNoteModelDetails({ cod_drn });
         res.json({ message: 'Detalle eliminado con éxito' });
     } catch (error) {

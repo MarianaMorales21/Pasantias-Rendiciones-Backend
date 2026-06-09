@@ -25,7 +25,7 @@ const getOrder = async (req, res) => {
 };
 
 const createOrder = async (req, res) => {
-    let { num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
+    let { num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg } = req.body;
     try {
         if (!mon_opg || Number(mon_opg) <= 0) {
             return res.status(400).json({ message: 'El monto de la Orden de Pago debe ser mayor a cero.' });
@@ -62,8 +62,8 @@ const createOrder = async (req, res) => {
             return res.status(409).json({ message: `Ya existe una Orden de Pago con el número "${num_opg}". El número de orden debe ser único.` });
         }
 
-        const newOrder = await orderModel.createOrderModel({ 
-            num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg
+        const newOrder = await orderModel.createOrderModel({
+            num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg
         });
         res.status(201).json(newOrder);
     } catch (error) {
@@ -74,7 +74,7 @@ const createOrder = async (req, res) => {
 
 const updateOrder = async (req, res) => {
     const { cod_opg } = req.params;
-    let { num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg } = req.body;
+    let { num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg } = req.body;
     try {
         if (!mon_opg || Number(mon_opg) <= 0) {
             return res.status(400).json({ message: 'El monto de la Orden de Pago debe ser mayor a cero.' });
@@ -122,16 +122,16 @@ const updateOrder = async (req, res) => {
         if (currentAmount < existingAmount) {
             const netSpent = round2(await orderModel.getOpgNetSpent(cod_opg));
             if (currentAmount < netSpent) {
-                return res.status(400).json({ 
-                    message: `No se puede reducir el monto de la Orden de Pago por debajo de lo ya rendido (Bs. ${netSpent.toLocaleString("es-VE", { minimumFractionDigits: 2 })}).` 
+                return res.status(400).json({
+                    message: `No se puede reducir el monto de la Orden de Pago por debajo de lo ya rendido (Bs. ${netSpent.toLocaleString("es-VE", { minimumFractionDigits: 2 })}).`
                 });
             }
         }
 
-        const updatedOrderData = await orderModel.updateOrderModel(cod_opg, { 
-            num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg
+        const updatedOrderData = await orderModel.updateOrderModel(cod_opg, {
+            num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg
         });
-        
+
         if (!updatedOrderData) {
             return res.status(404).json({ message: 'Orden no Encontrada o no se realizaron cambios' });
         }

@@ -6,6 +6,7 @@ import {
     getFullOPGReport, // Nuevo controlador para el historial completo
     getDashboardStats,
     getOPGExecutionByRendition,
+    getDepartureStats,
 } from "../controllers/reportsController.js";
 
 const router = Router();
@@ -29,5 +30,7 @@ router.get('/reports/opg/:cod_opg', getFullOPGReport);
 
 // --- ESTADÍSTICAS DEL DASHBOARD ---
 router.get('/reports/dashboard-stats', getDashboardStats);
+router.get('/reports/dashboard/departure-stats', getDepartureStats);
+
 
 export default router;

@@ -1,8 +1,13 @@
 import { renditionModel } from "../models/renditionModel.js";
 import { orderModel } from "../models/orderModel.js";
+import { stateModel } from "../models/stateModel.js";
 
-// Estado ID que representa "Cerrado" — ajustar según la BD
-const CLOSED_STATE_ID = 3;
+const isAdmin = (req) => req.user?.rol === 1;
+const isCoordinator = (req) => req.user?.rol === 2;
+const getWorkflowStates = async () => ({
+    active: await stateModel.getStateByNameModel('Activo'),
+    delivered: await stateModel.ensureStateModel('Entregada')
+});
 
 const getRenditions = async (req, res) => {
     try {
@@ -74,10 +79,36 @@ const updateRendition = async (req, res) => {
         // Normalizar mayúsculas
         prd_rnd = (prd_rnd || '').toUpperCase();
 
-        // Verificar si la rendición está cerrada
+        const { active, delivered } = await getWorkflowStates();
+
+        // Verificar si la rendición está entregada
         const existing = await renditionModel.getRenditionModel({ cod_rnd });
-        if (existing && existing.sta_rnd === CLOSED_STATE_ID) {
-            return res.status(409).json({ message: 'No se puede editar una Rendición que está en estado Cerrado.' });
+        if (!existing) return res.status(404).json({ message: 'Rendición no encontrada' });
+
+        const currentStatus = Number(existing.sta_rnd);
+        const nextStatus = Number(sta_rnd);
+        const deliveredId = Number(delivered.cod_sta);
+        const activeId = Number(active?.cod_sta || 1);
+
+        if (currentStatus === deliveredId) {
+            const adminReopening = isAdmin(req) && nextStatus === activeId;
+            if (!adminReopening) {
+                return res.status(409).json({ message: 'No se puede editar una Rendición entregada. Solo el administrador puede cambiarla a Activo.' });
+            }
+            num_rnd = existing.num_rnd;
+            opg_rnd = existing.opg_rnd;
+            fec_rnd = existing.fec_rnd;
+            prd_rnd = existing.prd_rnd;
+            avs_rnd = existing.avs_rnd;
+            rnt_rnd = existing.rnt_rnd;
+        }
+
+        if (currentStatus === activeId && nextStatus === deliveredId && !isAdmin(req) && !isCoordinator(req)) {
+            return res.status(403).json({ message: 'Solo el administrador o la coordinadora pueden entregar una Rendición.' });
+        }
+
+        if (currentStatus === deliveredId && nextStatus !== activeId && !isAdmin(req)) {
+            return res.status(403).json({ message: 'Solo el administrador puede cambiar una Rendición entregada a Activo.' });
         }
 
         // Verificar que la fecha no sea futura
@@ -108,13 +139,18 @@ const updateRendition = async (req, res) => {
 const deleteRendition = async (req, res) => {
     const { cod_rnd } = req.params;
     try {
+        const delivered = await stateModel.ensureStateModel('Entregada');
+        const existing = await renditionModel.getRenditionModel({ cod_rnd });
+        if (existing && Number(existing.sta_rnd) === Number(delivered.cod_sta)) {
+            return res.status(409).json({ message: 'No se puede eliminar una Rendición entregada.' });
+        }
+
         // No eliminar si tiene notas de débito asociadas
         const hasNdb = await renditionModel.renditionHasDebitNotes(cod_rnd);
         if (hasNdb) {
             return res.status(409).json({ message: 'No se puede eliminar esta Rendición porque tiene Notas de Débito asociadas. Elimine primero las notas.' });
         }
 
-        const existing = await renditionModel.getRenditionModel({ cod_rnd });
         const opg_rnd = existing?.opg_rnd;
 
         const result = await renditionModel.deleteRenditionModel({ cod_rnd });

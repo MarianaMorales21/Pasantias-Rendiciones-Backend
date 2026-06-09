@@ -9,7 +9,8 @@ const getOrdersModel = async () => {
             c.ced_ctd,
             s.nom_sta, 
             p.num_par, 
-            p.nom_par
+            p.nom_par,
+            o.gac_opg -- CORREGIDO: cambiado 'r.gac_opg' a 'o.gac_opg'
         FROM opg_ren o
         LEFT JOIN ctd_ren c ON o.ctd_opg = c.cod_ctd
         LEFT JOIN sta_ren s ON o.sta_opg = s.cod_sta
@@ -27,7 +28,8 @@ const getOrderModel = async ({ cod_opg }) => {
             c.ced_ctd,
             s.nom_sta, 
             p.num_par, 
-            p.nom_par
+            p.nom_par,
+            o.gac_opg -- CORREGIDO: cambiado 'r.gac_opg' a 'o.gac_opg'
         FROM opg_ren o
         LEFT JOIN ctd_ren c ON o.ctd_opg = c.cod_ctd
         LEFT JOIN sta_ren s ON o.sta_opg = s.cod_sta
@@ -64,36 +66,36 @@ const opgHasDebitNotes = async (cod_opg) => {
     return rows[0].count > 0;
 };
 
-const createOrderModel = async ({ 
-    num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, 
-    mon_opg, con_opg, sta_opg, par_opg 
+const createOrderModel = async ({
+    num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg,
+    mon_opg, con_opg, sta_opg, par_opg, gac_opg
 }) => {
     const [result] = await db.query(
         `INSERT INTO opg_ren 
-        (num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg) 
-        VALUES (?,?,?,?,?,?,?,?,?,?)`, 
-        [num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, parseInt(sta_opg), par_opg]
+        (num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg) 
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, parseInt(sta_opg), par_opg, gac_opg]
     );
-    return { 
-        cod_opg: result.insertId, num_opg, ctd_opg, fec_opg, 
-        fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg 
+    return {
+        cod_opg: result.insertId, num_opg, ctd_opg, fec_opg,
+        fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg
     };
 };
 
-const updateOrderModel = async (cod_opg, { 
-    num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, 
-    mon_opg, con_opg, sta_opg, par_opg 
+const updateOrderModel = async (cod_opg, {
+    num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg,
+    mon_opg, con_opg, sta_opg, par_opg, gac_opg
 }) => {
     await db.query(
         `UPDATE opg_ren SET 
         num_opg=?, ctd_opg=?, fec_opg=?, fco_opg=?, fdc_opg=?, dcr_opg=?, 
-        mon_opg=?, con_opg=?, sta_opg=?, par_opg=? 
-        WHERE cod_opg=?`, 
-        [num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, parseInt(sta_opg), par_opg, cod_opg]
+        mon_opg=?, con_opg=?, sta_opg=?, par_opg=?, gac_opg=? 
+        WHERE cod_opg=?`,
+        [num_opg, ctd_opg, fec_opg, fco_opg, fdc_opg, dcr_opg, mon_opg, con_opg, parseInt(sta_opg), par_opg, gac_opg, cod_opg]
     );
-    return { 
-        cod_opg, num_opg, ctd_opg, fec_opg, fco_opg, 
-        fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg 
+    return {
+        cod_opg, num_opg, ctd_opg, fec_opg, fco_opg,
+        fdc_opg, dcr_opg, mon_opg, con_opg, sta_opg, par_opg, gac_opg
     };
 };
 

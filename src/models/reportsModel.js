@@ -26,7 +26,7 @@ const getReportHeaderModel = async (cod_rnd) => {
         SELECT 
             r.cod_rnd, r.num_rnd, r.fec_rnd, r.prd_rnd, r.avs_rnd, r.rnt_rnd,
             o.cod_opg, o.num_opg, o.fec_opg, o.mon_opg, o.con_opg, o.fco_opg, o.dcr_opg,
-            o.fdc_opg,
+            o.fdc_opg, o.gac_opg,
             p.num_par, p.nom_par,
             c.nom_ctd, c.ape_ctd, c.ced_ctd, c.dir_ctd
         FROM rnd_ren r
@@ -162,6 +162,7 @@ const getActaDataModel = async (cod_rnd) => {
         SELECT 
             r.num_rnd, r.fec_rnd, r.prd_rnd, r.avs_rnd, r.rnt_rnd,
             o.cod_opg, o.num_opg, o.mon_opg, o.con_opg, o.fco_opg, o.dcr_opg,
+            o.fdc_opg, o.gac_opg,
             c.nom_ctd, c.ape_ctd, c.ced_ctd
         FROM rnd_ren r
         JOIN opg_ren o ON r.opg_rnd = o.cod_opg
@@ -258,6 +259,42 @@ const getOPGRenditionsProgressModel = async (cod_opg, monOpg) => {
     });
 };
 
+const getDepartureStatsByOpgModel = async (cod_opg) => {
+    const [rows] = await db.query(`
+        SELECT 
+            p.cod_par,
+            p.num_par,
+            p.nom_par,
+            COALESCE(SUM(d.mon_drn), 0) AS total_gastado
+        FROM par_ren p
+        JOIN drn_ren d ON p.cod_par = d.par_drn
+        JOIN ndb_ren n ON d.cab_drn = n.cod_ndb
+        JOIN rnd_ren r ON n.rnd_ndb = r.cod_rnd
+        WHERE r.opg_rnd = ?
+        GROUP BY p.cod_par, p.num_par, p.nom_par
+        ORDER BY p.num_par ASC
+    `, [cod_opg]);
+    return rows;
+};
+
+const getDepartureStatsAnnualModel = async () => {
+    const year = new Date().getFullYear();
+    const [rows] = await db.query(`
+        SELECT 
+            p.cod_par,
+            p.num_par,
+            p.nom_par,
+            COALESCE(SUM(d.mon_drn), 0) AS total_gastado
+        FROM par_ren p
+        JOIN drn_ren d ON p.cod_par = d.par_drn
+        JOIN ndb_ren n ON d.cab_drn = n.cod_ndb
+        WHERE YEAR(n.fec_ndb) = ?
+        GROUP BY p.cod_par, p.num_par, p.nom_par
+        ORDER BY p.num_par ASC
+    `, [year]);
+    return rows;
+};
+
 export const reportsModel = {
     getRenditionListModel,
     getReportHeaderModel,
@@ -269,4 +306,7 @@ export const reportsModel = {
     getOPGExecutionByRenditionModel,
     getDetailedReportCalculationsModel,
     getOPGRenditionsProgressModel,
+    getDepartureStatsByOpgModel,
+    getDepartureStatsAnnualModel,
 };
+

@@ -8,6 +8,11 @@ const getOpgFromRendition = async (cod_rnd) => {
     return rendition?.opg_rnd || null;
 };
 
+const isDeliveredRendition = async (cod_rnd) => {
+    const rendition = await renditionModel.getRenditionModel({ cod_rnd });
+    return rendition?.nom_sta === 'Entregada';
+};
+
 const getDebitNotes = async (req, res) => {
     try {
         const debitNotes = await debitNoteModel.getDebitNotesModel();
@@ -67,6 +72,10 @@ const validateDebitNoteAmount = async (rnd_ndb, mon_ndb, excludedCodNdb = null) 
 const createDebitNote = async (req, res) => {
     let { num_ndb, fec_ndb, ben_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
     try {
+        if (await isDeliveredRendition(rnd_ndb)) {
+            return res.status(409).json({ message: 'No se pueden crear Notas de Débito en una Rendición entregada.' });
+        }
+
         if (fec_ndb && new Date(fec_ndb) > new Date()) {
             return res.status(400).json({ message: 'La fecha de la Nota de Débito no puede ser posterior a la fecha actual.' });
         }
@@ -139,6 +148,20 @@ const updateDebitNote = async (req, res) => {
     const { cod_ndb } = req.params;
     let { num_ndb, fec_ndb, ben_ndb, rnd_ndb, con_ndb, mon_ndb, ban_ndb, ref_ndb, pro_ndb, rtc_ndb, tbf_ndb, isl_ndb, sub_ndb } = req.body;
     try {
+        const existingNote = await debitNoteModel.getDebitNoteModel({ cod_ndb });
+        if (!existingNote) {
+            return res.status(404).json({ message: 'Nota de Débito no encontrada' });
+        }
+
+        const currentRendition = await renditionModel.getRenditionByDebitNoteModel(cod_ndb);
+        if (currentRendition?.nom_sta === 'Entregada') {
+            return res.status(409).json({ message: 'No se puede editar una Nota de Débito de una Rendición entregada.' });
+        }
+
+        if (await isDeliveredRendition(rnd_ndb)) {
+            return res.status(409).json({ message: 'No se puede mover una Nota de Débito a una Rendición entregada.' });
+        }
+
         if (fec_ndb && new Date(fec_ndb) > new Date()) {
             return res.status(400).json({ message: 'La fecha de la Nota de Débito no puede ser posterior a la fecha actual.' });
         }
@@ -187,11 +210,6 @@ const updateDebitNote = async (req, res) => {
             return res.status(409).json({ message: `Ya existe otra Nota de Débito con el número "${num_ndb}". El número de nota debe ser único.` });
         }
 
-        const existingNote = await debitNoteModel.getDebitNoteModel({ cod_ndb });
-        if (!existingNote) {
-            return res.status(404).json({ message: 'Nota de Débito no encontrada' });
-        }
-
         const currentAmount = round2(mon_ndb);
         const existingAmount = round2(existingNote.mon_ndb);
         if (currentAmount < existingAmount) {
@@ -228,6 +246,11 @@ const updateDebitNote = async (req, res) => {
 const deleteDebitNote = async (req, res) => {
     const { cod_ndb } = req.params;
     try {
+        const currentRendition = await renditionModel.getRenditionByDebitNoteModel(cod_ndb);
+        if (currentRendition?.nom_sta === 'Entregada') {
+            return res.status(409).json({ message: 'No se puede eliminar una Nota de Débito de una Rendición entregada.' });
+        }
+
         const hasDetails = await debitNoteModel.debitNoteHasDetails(cod_ndb);
         if (hasDetails) {
             return res.status(409).json({ message: 'No se puede eliminar esta Nota de Débito porque tiene Detalles de Gasto asociados. Elimine primero los detalles.' });
