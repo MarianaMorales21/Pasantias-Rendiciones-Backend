@@ -104,20 +104,38 @@ const getOPGExecutionSummaryModel = async (cod_opg) => {
                 WHERE r2.opg_rnd = o.cod_opg
             ), 0) AS total_reintegros,
             COALESCE(SUM(
-                CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
-                    THEN n.mon_ndb ELSE 0 END
+                CASE 
+                    WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                        CASE WHEN ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                            THEN n.mon_ndb ELSE 0 END
+                    ELSE
+                        CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                            THEN n.mon_ndb ELSE 0 END
+                END
             ), 0) AS bruto_ejecutado,
             (COALESCE(SUM(
-                CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
-                    THEN n.mon_ndb ELSE 0 END
+                CASE 
+                    WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                        CASE WHEN ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                            THEN n.mon_ndb ELSE 0 END
+                    ELSE
+                        CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                            THEN n.mon_ndb ELSE 0 END
+                END
             ), 0) - COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
                 WHERE r2.opg_rnd = o.cod_opg
             ), 0)) AS total_ejecutado,
             (o.mon_opg - (COALESCE(SUM(
-                CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
-                    THEN n.mon_ndb ELSE 0 END
+                CASE 
+                    WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                        CASE WHEN ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                            THEN n.mon_ndb ELSE 0 END
+                    ELSE
+                        CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                            THEN n.mon_ndb ELSE 0 END
+                END
             ), 0) - COALESCE((
                 SELECT SUM(COALESCE(r2.rnt_rnd, 0)) 
                 FROM rnd_ren r2 
@@ -180,12 +198,26 @@ const getDashboardProgramStatsModel = async () => {
             p.cod_pro,
             p.nom_pro,
             COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? 
-                THEN CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
-                    THEN n.mon_ndb ELSE 0 END
+                THEN 
+                    CASE 
+                        WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                            CASE WHEN ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                                THEN n.mon_ndb ELSE 0 END
+                        ELSE
+                            CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                                THEN n.mon_ndb ELSE 0 END
+                    END
                 ELSE 0 END), 0) as gastado_anual,
             COALESCE(SUM(CASE WHEN YEAR(n.fec_ndb) = ? AND MONTH(n.fec_ndb) = ? 
-                THEN CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
-                    THEN n.mon_ndb ELSE 0 END
+                THEN 
+                    CASE 
+                        WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                            CASE WHEN ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                                THEN n.mon_ndb ELSE 0 END
+                        ELSE
+                            CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                                THEN n.mon_ndb ELSE 0 END
+                    END
                 ELSE 0 END), 0) as gastado_mensual
         FROM pro_ren p
         LEFT JOIN ndb_ren n ON p.cod_pro = n.pro_ndb
@@ -229,9 +261,12 @@ const getOPGRenditionsProgressModel = async (cod_opg, monOpg) => {
             COALESCE(r.rnt_rnd, 0) AS reintegro,
             COALESCE(SUM(
                 CASE 
-                    WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
-                    THEN n.mon_ndb 
-                    ELSE 0 
+                    WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                        CASE WHEN ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                            THEN n.mon_ndb ELSE 0 END
+                    ELSE
+                        CASE WHEN (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb 
+                            THEN n.mon_ndb ELSE 0 END
                 END
             ), 0) AS monto_rendido
         FROM rnd_ren r
@@ -263,14 +298,22 @@ const getDepartureStatsByOpgModel = async (cod_opg) => {
     const [rows] = await db.query(`
         SELECT 
             p.cod_par,
-            p.num_par,
-            p.nom_par,
+            COALESCE(p.num_par, 'SIN PARTIDA') AS num_par,
+            COALESCE(p.nom_par, 'SIN PARTIDA PRESUPUESTARIA') AS nom_par,
             COALESCE(SUM(d.mon_drn), 0) AS total_gastado
-        FROM par_ren p
-        JOIN drn_ren d ON p.cod_par = d.par_drn
+        FROM drn_ren d
         JOIN ndb_ren n ON d.cab_drn = n.cod_ndb
         JOIN rnd_ren r ON n.rnd_ndb = r.cod_rnd
+        LEFT JOIN par_ren p ON d.par_drn = p.cod_par
         WHERE r.opg_rnd = ?
+          AND (
+              CASE 
+                  WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                      ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                  ELSE
+                      (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb
+              END
+          )
         GROUP BY p.cod_par, p.num_par, p.nom_par
         ORDER BY p.num_par ASC
     `, [cod_opg]);
@@ -282,13 +325,21 @@ const getDepartureStatsAnnualModel = async () => {
     const [rows] = await db.query(`
         SELECT 
             p.cod_par,
-            p.num_par,
-            p.nom_par,
+            COALESCE(p.num_par, 'SIN PARTIDA') AS num_par,
+            COALESCE(p.nom_par, 'SIN PARTIDA PRESUPUESTARIA') AS nom_par,
             COALESCE(SUM(d.mon_drn), 0) AS total_gastado
-        FROM par_ren p
-        JOIN drn_ren d ON p.cod_par = d.par_drn
+        FROM drn_ren d
         JOIN ndb_ren n ON d.cab_drn = n.cod_ndb
+        LEFT JOIN par_ren p ON d.par_drn = p.cod_par
         WHERE YEAR(n.fec_ndb) = ?
+          AND (
+              CASE 
+                  WHEN n.ban_ndb = 'BANCO PATRIA' THEN
+                      ROUND((SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb), 2) = ROUND(n.mon_ndb, 2)
+                  ELSE
+                      (SELECT COALESCE(SUM(mon_drn), 0) FROM drn_ren WHERE cab_drn = n.cod_ndb) >= n.mon_ndb
+              END
+          )
         GROUP BY p.cod_par, p.num_par, p.nom_par
         ORDER BY p.num_par ASC
     `, [year]);

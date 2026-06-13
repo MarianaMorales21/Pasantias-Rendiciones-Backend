@@ -28,20 +28,36 @@ const createDebitNoteDetail = async (req, res) => {
 
         des_drn = (des_drn || '').toUpperCase();
 
+        // Obtener el banco de la nota de débito
+        const bank = await debitNoteDetailsModel.getBankByNoteModel(cab_drn);
+        const isPatria = bank === 'BANCO PATRIA';
+
         const amount = round2(mon_drn);
-        if (Number.isNaN(amount) || amount <= 0) {
-            return res.status(400).json({ message: 'El monto del detalle de gasto debe ser mayor a cero' });
+        if (Number.isNaN(amount)) {
+            return res.status(400).json({ message: 'El monto del detalle de gasto no es válido' });
         }
 
-        const validation = await debitNoteDetailsModel.getDetailBudgetModel(cab_drn);
-        if (!validation) {
-            return res.status(404).json({ message: 'Nota de Débito no encontrada' });
-        }
+        if (!isPatria) {
+            // Notas normales: el monto debe ser positivo y no exceder el disponible
+            if (amount <= 0) {
+                return res.status(400).json({ message: 'El monto del detalle de gasto debe ser mayor a cero' });
+            }
 
-        if (amount > round2(validation.remaining)) {
-            return res.status(400).json({
-                message: `El monto del detalle excede el disponible de la Nota de Débito. Disponible: Bs. ${validation.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
-            });
+            const validation = await debitNoteDetailsModel.getDetailBudgetModel(cab_drn);
+            if (!validation) {
+                return res.status(404).json({ message: 'Nota de Débito no encontrada' });
+            }
+
+            if (amount > round2(validation.remaining)) {
+                return res.status(400).json({
+                    message: `El monto del detalle excede el disponible de la Nota de Débito. Disponible: Bs. ${validation.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                });
+            }
+        } else {
+            // Banco Patria: cualquier monto (positivo o negativo) es válido
+            if (amount === 0) {
+                return res.status(400).json({ message: 'El monto del detalle no puede ser cero' });
+            }
         }
 
         const newDetail = await debitNoteDetailsModel.createDebitNoteModelDetails({ 
@@ -73,20 +89,34 @@ const updateDebitNoteDetail = async (req, res) => {
 
         des_drn = (des_drn || '').toUpperCase();
 
+        // Obtener el banco de la nota de débito
+        const bank = await debitNoteDetailsModel.getBankByNoteModel(cab_drn);
+        const isPatria = bank === 'BANCO PATRIA';
+
         const amount = round2(mon_drn);
-        if (Number.isNaN(amount) || amount <= 0) {
-            return res.status(400).json({ message: 'El monto del detalle de gasto debe ser mayor a cero' });
+        if (Number.isNaN(amount)) {
+            return res.status(400).json({ message: 'El monto del detalle de gasto no es válido' });
         }
 
-        const validation = await debitNoteDetailsModel.getDetailBudgetModel(cab_drn, cod_drn);
-        if (!validation) {
-            return res.status(404).json({ message: 'Nota de Débito no encontrada' });
-        }
+        if (!isPatria) {
+            if (amount <= 0) {
+                return res.status(400).json({ message: 'El monto del detalle de gasto debe ser mayor a cero' });
+            }
 
-        if (amount > round2(validation.remaining)) {
-            return res.status(400).json({
-                message: `El monto del detalle excede el disponible de la Nota de Débito. Disponible: Bs. ${validation.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
-            });
+            const validation = await debitNoteDetailsModel.getDetailBudgetModel(cab_drn, cod_drn);
+            if (!validation) {
+                return res.status(404).json({ message: 'Nota de Débito no encontrada' });
+            }
+
+            if (amount > round2(validation.remaining)) {
+                return res.status(400).json({
+                    message: `El monto del detalle excede el disponible de la Nota de Débito. Disponible: Bs. ${validation.remaining.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                });
+            }
+        } else {
+            if (amount === 0) {
+                return res.status(400).json({ message: 'El monto del detalle no puede ser cero' });
+            }
         }
 
         const updated = await debitNoteDetailsModel.updateDebitNoteModelDetails(cod_drn, { 

@@ -153,6 +153,15 @@ const updateDebitNote = async (req, res) => {
             return res.status(404).json({ message: 'Nota de Débito no encontrada' });
         }
 
+        if (existingNote.ban_ndb === 'BANCO PATRIA' && ban_ndb && ban_ndb !== 'BANCO PATRIA') {
+            const [negRows] = await db.query('SELECT COUNT(*) as count FROM drn_ren WHERE cab_drn = ? AND mon_drn < 0', [cod_ndb]);
+            if (negRows[0]?.count > 0) {
+                return res.status(400).json({
+                    message: 'No se puede cambiar el banco de BANCO PATRIA a otro banco porque la nota tiene detalles de gasto con montos negativos. Elimine o edite esos detalles primero.'
+                });
+            }
+        }
+
         const currentRendition = await renditionModel.getRenditionByDebitNoteModel(cod_ndb);
         if (currentRendition?.nom_sta === 'Entregada') {
             return res.status(409).json({ message: 'No se puede editar una Nota de Débito de una Rendición entregada.' });
@@ -210,9 +219,10 @@ const updateDebitNote = async (req, res) => {
             return res.status(409).json({ message: `Ya existe otra Nota de Débito con el número "${num_ndb}". El número de nota debe ser único.` });
         }
 
+        const isPatria = existingNote.ban_ndb === 'BANCO PATRIA' || ban_ndb === 'BANCO PATRIA';
         const currentAmount = round2(mon_ndb);
         const existingAmount = round2(existingNote.mon_ndb);
-        if (currentAmount < existingAmount) {
+        if (!isPatria && currentAmount < existingAmount) {
             const [detailsRows] = await db.query('SELECT COALESCE(SUM(mon_drn), 0) as total FROM drn_ren WHERE cab_drn = ?', [cod_ndb]);
             const totalDetails = round2(detailsRows[0]?.total || 0);
             if (currentAmount < totalDetails) {

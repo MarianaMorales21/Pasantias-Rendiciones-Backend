@@ -74,11 +74,17 @@ const getDetailBudgetModel = async (cab_drn, excludedCodDrn = null) => {
     };
 };
 
+const getBankByNoteModel = async (cod_ndb) => {
+    const [rows] = await db.query('SELECT ban_ndb FROM ndb_ren WHERE cod_ndb = ?', [cod_ndb]);
+    return rows[0]?.ban_ndb || null;
+};
+
 export const debitNoteDetailsModel = {
     getDebitNoteModelDetails,
     getDetailsByDebitNoteModel,
     createDebitNoteModelDetails,
     updateDebitNoteModelDetails,
     deleteDebitNoteModelDetails,
-    getDetailBudgetModel
+    getDetailBudgetModel,
+    getBankByNoteModel
 };
